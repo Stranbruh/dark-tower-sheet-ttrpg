@@ -1504,16 +1504,15 @@ document.addEventListener('DOMContentLoaded', () => {
     GAME_DATA.skills.forEach(s => {
       const isChecked = currentSkillsText.includes(s.name.toLowerCase());
       const lbl = document.createElement('label');
-      lbl.className = 'custom-checkbox-label';
-      lbl.style.padding = '4px';
-      lbl.style.border = '1px solid var(--border-color)';
-      lbl.style.borderRadius = 'var(--radius)';
-      lbl.style.background = 'var(--bg-card)';
+      lbl.className = 'skill-select-card';
       lbl.innerHTML = `
         <input type="checkbox" value="${s.name}" ${isChecked ? 'checked' : ''}>
-        <div>
-          <div style="font-weight:bold; color:var(--accent-gold); font-size:13px;">${s.name} <span style="color:var(--text-muted); font-size:10px;">(${s.attr})</span></div>
-          <div style="font-size:10px; color:var(--text-muted);">${s.desc}</div>
+        <div class="skill-card-body">
+          <div class="skill-card-header">
+            <span class="skill-card-title">${s.name}</span>
+            <span class="skill-card-attr">(${s.attr})</span>
+          </div>
+          <div class="skill-card-desc">${s.desc}</div>
         </div>
       `;
       container.appendChild(lbl);
