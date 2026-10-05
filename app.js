@@ -1871,17 +1871,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let wizStep = 0;
   let wizData = {
-    name: '', race: '', concept: '',
+    name: 'Новый герой',
+    race: 'Человек',
+    selectedTrait: 'human_knowledge',
+    dwarfSpecial: 'Горное дело',
+    elfDoubledSkill: '',
+    concept: 'Искатель приключений',
     attrs: { constitution: 'd6', intellect: 'd8', empathy: 'd8', spirit: 'd10' },
-    skills: [], dinars: 100, inventory: ''
+    skills: [],
+    dinars: 100,
+    inventory: 'Стандартный дорожный набор, факел, огниво'
   };
+
+  const ATTR_NAMES_RU = {
+    constitution: { name: 'Телосложение', desc: 'Физическая сила, выносливость, стойкость к ядам и ранам (запас ОЗ тела).' },
+    intellect:    { name: 'Интеллект',    desc: 'Логика, память, эрудиция, тактический анализ, изучение фолиантов (запас ОЗ разума).' },
+    empathy:      { name: 'Эмпатия',      desc: 'Интуиция, харизма, распознавание лжи, переговоры, этикет (запас ОЗ психики).' },
+    spirit:       { name: 'Дух',          desc: 'Сила воли, концентрация, стойкость к безумию, сотворение магии (запас ОЗ духа).' }
+  };
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function getWizMaxSkills() {
+    if (wizData.race === 'Человек') {
+      return 3; // +1 дополнительный навык по черте «Много поверхностных знаний»
+    }
+    // Для всех остальных рас базовое количество - 2
+    // (Для Дворфа с чертой «Дворфийские знания» 3-й навык выбирается отдельно через радио-кнопку: Горное дело или Пивоварение)
+    return 2;
+  }
 
   function startWizard() {
     wizStep = 0;
     wizData = {
-      name: 'Новый герой', race: 'Человек', concept: 'Искатель приключений',
+      name: 'Новый герой',
+      race: 'Человек',
+      selectedTrait: 'human_knowledge',
+      dwarfSpecial: 'Горное дело',
+      elfDoubledSkill: '',
+      concept: 'Искатель приключений',
       attrs: { constitution: 'd6', intellect: 'd8', empathy: 'd8', spirit: 'd10' },
-      skills: [], dinars: 100, inventory: ''
+      skills: [],
+      dinars: 100,
+      inventory: 'Стандартный дорожный набор, факел, огниво'
     };
     renderWizardStep();
   }
@@ -1905,99 +1944,325 @@ document.addEventListener('DOMContentLoaded', () => {
     let contentHtml = '';
 
     if (wizStep === 0) {
+      const currentRace = GAME_DATA.races.find(r => r.name === wizData.race) || GAME_DATA.races[0];
+      
       contentHtml = `
-        <label>Имя персонажа</label>
-        <input type="text" id="wzName" value="${wizData.name}" class="input-underline" style="background:var(--bg-input); width:100%; margin-bottom:12px;">
-        <label>Концепция (класс/профессия)</label>
-        <input type="text" id="wzConcept" value="${wizData.concept}" class="input-underline" style="background:var(--bg-input); width:100%; margin-bottom:12px;">
-        <label>Раса (выберите карточку)</label>
+        <div style="margin-bottom:12px;">
+          <label style="font-weight:700; font-size:13px; color:var(--accent-gold);">Имя персонажа</label>
+          <input type="text" id="wzName" value="${escapeHtml(wizData.name)}" class="input-underline" style="background:var(--bg-input); width:100%; padding:6px 8px; margin-top:4px;" placeholder="Имя вашего героя">
+        </div>
+        <div style="margin-bottom:14px;">
+          <label style="font-weight:700; font-size:13px; color:var(--accent-gold);">Концепция (класс / профессия / предыстория)</label>
+          <input type="text" id="wzConcept" value="${escapeHtml(wizData.concept)}" class="input-underline" style="background:var(--bg-input); width:100%; padding:6px 8px; margin-top:4px;" placeholder="Например: Ветеран севера, Бродячий пиромант...">
+        </div>
+        
+        <label style="font-weight:700; font-size:13px; color:var(--accent-gold); display:block; margin-bottom:8px;">
+          Раса персонажа (выберите карточку с бонусами):
+        </label>
         <div class="wizard-card-grid">
           ${GAME_DATA.races.map(r => `
             <div class="wizard-card ${wizData.race === r.name ? 'is-selected' : ''}" onclick="window.setWizRace('${r.name}')">
               <div class="wizard-card-title">${r.name}</div>
               <div class="wizard-card-desc">${r.desc}</div>
-              <div style="font-size:10px; color:var(--accent-gold); margin-top:4px;">${r.traits.map(t=>t.name).join(', ')}</div>
+              <div class="wizard-card-traits">
+                ${r.traits.map(t => `
+                  <div class="wizard-trait-item">
+                    <span class="wizard-trait-name">⚡ ${t.name}:</span>
+                    <span>${t.effect}</span>
+                  </div>
+                `).join('')}
+              </div>
             </div>
           `).join('')}
         </div>
       `;
+
+      if (currentRace.traits && currentRace.traits.length > 1) {
+        contentHtml += `
+          <div class="wizard-trait-choice-box">
+            <div class="wizard-trait-choice-title">
+              ⚡ Активная расовая черта для расы «${currentRace.name}» (по правилам выбирается одна):
+            </div>
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              ${currentRace.traits.map(t => `
+                <label class="wizard-trait-radio-label ${wizData.selectedTrait === t.id ? 'is-selected' : ''}">
+                  <input type="radio" name="wzSelectedTrait" value="${t.id}" ${wizData.selectedTrait === t.id ? 'checked' : ''}>
+                  <div>
+                    <strong style="color:var(--accent-gold);">${t.name}</strong> — 
+                    <span style="color:var(--text-main); font-size:12px;">${t.effect}</span>
+                  </div>
+                </label>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
     } 
     else if (wizStep === 1) {
+      const counts = { d6: 0, d8: 0, d10: 0 };
+      Object.values(wizData.attrs).forEach(v => { if (counts[v] !== undefined) counts[v]++; });
+      const isValid = (counts.d6 === 1 && counts.d8 === 2 && counts.d10 === 1);
+
       contentHtml = `
-        <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px;">Распределите кости: <strong>d6, d8, d8, d10</strong> между характеристиками.</p>
-        <div style="display:flex; flex-direction:column; gap:8px;">
-          ${Object.keys(wizData.attrs).map(attr => `
-            <div style="display:flex; justify-content:space-between; align-items:center; background:var(--bg-card); padding:8px; border:1px solid var(--border-color);">
-              <span style="font-family:var(--font-heading); font-weight:bold;">${attr.toUpperCase()}</span>
-              <select class="die-select wz-attr-select" data-attr="${attr}" style="width:80px; background:var(--bg-input);">
-                <option value="d6" ${wizData.attrs[attr]==='d6'?'selected':''}>d6</option>
-                <option value="d8" ${wizData.attrs[attr]==='d8'?'selected':''}>d8</option>
-                <option value="d10" ${wizData.attrs[attr]==='d10'?'selected':''}>d10</option>
-              </select>
-            </div>
-          `).join('')}
+        <div class="wizard-attr-pool-bar">
+          <div>
+            <span>Стартовый пул костей: <strong>d6 (1 шт.), d8 (2 шт.), d10 (1 шт.)</strong></span>
+          </div>
+          <div style="font-weight:700; font-size:12px; color:${isValid ? '#27ae60' : 'var(--accent-crimson)'};">
+            ${isValid ? '✔ Пул распределен верно' : `⚠ Распределено: d6 (${counts.d6}/1), d8 (${counts.d8}/2), d10 (${counts.d10}/1)`}
+          </div>
         </div>
-        <p id="wzAttrWarn" style="color:var(--accent-crimson); font-size:12px; margin-top:8px; display:none;">Набор костей должен точно совпадать с d6, d8, d8, d10!</p>
+
+        <div class="wizard-attr-list">
+          ${Object.keys(wizData.attrs).map(attrKey => {
+            const info = ATTR_NAMES_RU[attrKey];
+            return `
+              <div class="wizard-attr-row">
+                <div class="wizard-attr-info">
+                  <div class="wizard-attr-name">${info.name}</div>
+                  <div class="wizard-attr-desc">${info.desc}</div>
+                </div>
+                <select class="die-select wz-attr-select" data-attr="${attrKey}" style="width:85px; font-weight:700; font-size:14px; padding:6px; background:var(--bg-input);">
+                  <option value="d6" ${wizData.attrs[attrKey]==='d6'?'selected':''}>d6</option>
+                  <option value="d8" ${wizData.attrs[attrKey]==='d8'?'selected':''}>d8</option>
+                  <option value="d10" ${wizData.attrs[attrKey]==='d10'?'selected':''}>d10</option>
+                </select>
+              </div>
+            `;
+          }).join('')}
+        </div>
       `;
     }
     else if (wizStep === 2) {
-      let maxSkills = 2;
-      if (wizData.race === 'Человек' || wizData.race === 'Дворф') maxSkills = 3; // basic handling
-      
+      const maxSkills = getWizMaxSkills();
+      const selectedCount = wizData.skills.length;
+      const isComplete = (selectedCount === maxSkills);
+      const isLimitReached = (selectedCount >= maxSkills);
+
+      let ruleNote = '';
+      if (wizData.race === 'Человек') {
+        ruleNote = 'Раса <strong>«Человек»</strong> (черта «Много поверхностных знаний»): 2 базовых + 1 бонусный навык. Всего доступно: <strong>3</strong> навыка.';
+      } else if (wizData.race === 'Дворф' && wizData.selectedTrait === 'dwarf_knowledge') {
+        ruleNote = 'Раса <strong>«Дворф»</strong> (черта «Дворфийские знания»): <strong>2</strong> базовых навыка из списка + 1 специальный навык дворфа ниже.';
+      } else if (wizData.race === 'Дворф') {
+        ruleNote = 'Раса <strong>«Дворф»</strong> (черта «Выносливые горцы»): доступно <strong>2</strong> базовых навыка (бонус Телосложения против ядов).';
+      } else if (wizData.race === 'Эльф' && wizData.selectedTrait === 'elf_skills_km') {
+        ruleNote = 'Раса <strong>«Эльф»</strong> (черта «Специфические умения»): доступно <strong>2</strong> навыка (+2 КМ начислено на старте).';
+      } else if (wizData.race === 'Эльф' && wizData.selectedTrait === 'elf_honed_skill') {
+        ruleNote = 'Раса <strong>«Эльф»</strong> (черта «Отточенные навыки»): доступно <strong>2</strong> навыка (один выбранный навык получит удвоение бонуса).';
+      } else if (wizData.race === 'Орк') {
+        ruleNote = 'Раса <strong>«Орк»</strong>: доступно <strong>2</strong> базовых навыка.';
+      } else {
+        ruleNote = 'Доступно стартовых навыков: <strong>2</strong>.';
+      }
+
       contentHtml = `
-        <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px;">Выберите навыки. Доступно: <strong>${maxSkills}</strong>.</p>
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-          ${GAME_DATA.skills.map(s => `
-            <label style="display:flex; align-items:center; gap:6px; background:var(--bg-card); padding:4px; border:1px solid var(--border-color);">
-              <input type="checkbox" class="wz-skill-cb" value="${s.name}" ${wizData.skills.includes(s.name)?'checked':''}>
-              <span style="font-size:12px;">${s.name}</span>
-            </label>
-          `).join('')}
+        <div class="wizard-skills-header">
+          <div style="flex:1; min-width:240px;">
+            <div style="font-size:12.5px; color:var(--text-main);">${ruleNote}</div>
+          </div>
+          <div class="wizard-skills-counter ${isComplete ? 'is-complete' : 'is-incomplete'}">
+            Выбрано: <strong>${selectedCount}</strong> из <strong>${maxSkills}</strong>
+          </div>
+        </div>
+      `;
+
+      if (wizData.race === 'Дворф' && wizData.selectedTrait === 'dwarf_knowledge') {
+        contentHtml += `
+          <div class="wizard-dwarf-box">
+            <div style="font-weight:700; font-size:12.5px; color:var(--accent-gold); margin-bottom:6px;">
+              ⛏️ Дополнительный 3-й навык дворфа (по черте «Дворфийские знания»):
+            </div>
+            <div style="display:flex; gap:20px; flex-wrap:wrap;">
+              <label class="custom-checkbox-label" style="cursor:pointer;">
+                <input type="radio" name="wzDwarfSpecial" value="Горное дело" ${wizData.dwarfSpecial==='Горное дело'?'checked':''}>
+                <span><strong>Горное дело</strong> (Интеллект / Телосложение)</span>
+              </label>
+              <label class="custom-checkbox-label" style="cursor:pointer;">
+                <input type="radio" name="wzDwarfSpecial" value="Пивоварение" ${wizData.dwarfSpecial==='Пивоварение'?'checked':''}>
+                <span><strong>Пивоварение</strong> (Интеллект / Ремесла)</span>
+              </label>
+            </div>
+          </div>
+        `;
+      }
+
+      if (wizData.race === 'Эльф' && wizData.selectedTrait === 'elf_honed_skill' && wizData.skills.length > 0) {
+        if (!wizData.skills.includes(wizData.elfDoubledSkill)) {
+          wizData.elfDoubledSkill = wizData.skills[0];
+        }
+        contentHtml += `
+          <div style="margin-bottom:12px; padding:10px 14px; background:rgba(212, 163, 75, 0.08); border:1px solid var(--accent-gold); border-radius:var(--radius); display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+            <span style="font-size:12.5px; color:var(--accent-gold); font-weight:700;">
+              ✨ Черта «Отточенные навыки»: выберите навык для удвоения бонуса:
+            </span>
+            <select id="wzElfDoubled" class="btn" style="padding:4px 8px; font-size:12px; background:var(--bg-card); font-weight:700;">
+              ${wizData.skills.map(sk => `<option value="${sk}" ${wizData.elfDoubledSkill===sk?'selected':''}>${sk}</option>`).join('')}
+            </select>
+          </div>
+        `;
+      }
+
+      contentHtml += `
+        <div class="wizard-skills-grid">
+          ${GAME_DATA.skills.map(s => {
+            const isChecked = wizData.skills.includes(s.name);
+            const isDisabled = (!isChecked && isLimitReached);
+            return `
+              <label class="skill-select-card wizard-skill-card ${isChecked ? 'is-checked' : ''} ${isDisabled ? 'is-disabled' : ''}">
+                <input type="checkbox" class="wz-skill-cb" value="${s.name}" ${isChecked ? 'checked' : ''} ${isDisabled ? 'disabled' : ''}>
+                <div class="skill-card-body">
+                  <div class="skill-card-header">
+                    <span class="skill-card-title">${s.name}</span>
+                    <span class="skill-card-attr">(${s.attr})</span>
+                  </div>
+                  <div class="skill-card-desc">${s.desc}</div>
+                </div>
+              </label>
+            `;
+          }).join('')}
         </div>
       `;
     }
     else if (wizStep === 3) {
       contentHtml = `
-        <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px;">Вам дается 100 динаров на старте. Вы можете записать снаряжение текстом прямо сейчас.</p>
-        <textarea id="wzInv" class="textarea-clean" style="height:150px; background:var(--bg-card); border:1px solid var(--border-color); padding:8px;">${wizData.inventory}</textarea>
+        <div style="background:var(--bg-card); padding:12px 14px; border:1px solid var(--border-color); border-radius:var(--radius); margin-bottom:14px;">
+          <div style="font-weight:700; color:var(--accent-gold); margin-bottom:4px; font-size:14px;">💰 Стартовый капитал: 100 ⌘ (Динаров)</div>
+          <div style="font-size:12px; color:var(--text-muted); line-height:1.4;">
+            Каждому герою на старте полагается 100 динаров на экипировку, оружие и дорожные припасы.
+            Вы можете записать стартовое снаряжение текстом прямо сейчас, либо воспользоваться каталогом магазина позже.
+          </div>
+        </div>
+        <label style="font-weight:700; font-size:13px; color:var(--accent-gold); display:block; margin-bottom:6px;">
+          Список снаряжения:
+        </label>
+        <textarea id="wzInv" class="textarea-clean" style="height:140px; background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--radius); padding:8px 10px; width:100%; box-sizing:border-box;">${escapeHtml(wizData.inventory)}</textarea>
       `;
     }
     else if (wizStep === 4) {
+      let kmBonus = 0;
+      if (wizData.race === 'Человек') kmBonus = 1;
+      else if (wizData.race === 'Эльф' && wizData.selectedTrait === 'elf_skills_km') kmBonus = 2;
+
+      let allSkills = [...wizData.skills];
+      if (wizData.race === 'Дворф' && wizData.selectedTrait === 'dwarf_knowledge' && wizData.dwarfSpecial) {
+        allSkills.push(`${wizData.dwarfSpecial} (расовый)`);
+      }
+      if (wizData.race === 'Эльф' && wizData.selectedTrait === 'elf_honed_skill' && wizData.elfDoubledSkill) {
+        allSkills = allSkills.map(sk => sk === wizData.elfDoubledSkill ? `${sk} (★ двойной)` : sk);
+      }
+
+      const activeTraitObj = (GAME_DATA.races.find(r => r.name === wizData.race)?.traits || []).find(t => t.id === wizData.selectedTrait);
+      const traitName = activeTraitObj ? activeTraitObj.name : '—';
+      const traitEffect = activeTraitObj ? activeTraitObj.effect : '';
+
       contentHtml = `
-        <div style="text-align:center; padding:20px;">
-          <h2 style="color:var(--accent-gold); font-family:var(--font-heading); margin-bottom:10px;">Всё готово!</h2>
-          <p style="margin-bottom:20px; color:var(--text-muted);">Создан персонаж: <strong>${wizData.name}</strong>, раса: ${wizData.race}.<br>Нажмите «Завершить», чтобы применить эти данные к текущему листу.</p>
+        <div style="background:var(--bg-card); border:2px solid var(--accent-gold); border-radius:var(--radius); padding:16px;">
+          <h2 style="color:var(--accent-gold); font-family:var(--font-heading); margin-bottom:12px; text-align:center;">
+            🧙 Персонаж готов к походу!
+          </h2>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:14px; font-size:13px;">
+            <div>
+              <p style="margin-bottom:6px;"><strong>Имя:</strong> ${escapeHtml(wizData.name)}</p>
+              <p style="margin-bottom:6px;"><strong>Раса:</strong> ${wizData.race}</p>
+              <p style="margin-bottom:6px;"><strong>Черта расы:</strong> <span style="color:var(--accent-gold); font-weight:700;">${traitName}</span></p>
+              <p style="font-size:11.5px; color:var(--text-muted); margin-bottom:8px; line-height:1.35;">${traitEffect}</p>
+              <p style="margin-bottom:6px;"><strong>Концепция:</strong> ${escapeHtml(wizData.concept)}</p>
+              <p style="margin-bottom:6px;"><strong>Стартовые КМ:</strong> <strong>${kmBonus} / ${kmBonus}</strong></p>
+              <p><strong>Динары:</strong> 100 ⌘</p>
+            </div>
+            <div>
+              <p><strong>Характеристики:</strong></p>
+              <ul style="margin:4px 0 10px 18px; font-size:12.5px; line-height:1.4;">
+                <li>Телосложение: <strong>${wizData.attrs.constitution}</strong></li>
+                <li>Интеллект: <strong>${wizData.attrs.intellect}</strong></li>
+                <li>Эмпатия: <strong>${wizData.attrs.empathy}</strong></li>
+                <li>Дух: <strong>${wizData.attrs.spirit}</strong></li>
+              </ul>
+              <p><strong>Выбранные навыки (${allSkills.length}):</strong></p>
+              <div style="font-size:12px; color:var(--text-muted); line-height:1.4; margin-top:2px;">
+                ${allSkills.join(', ')}
+              </div>
+            </div>
+          </div>
+          <p style="margin-top:16px; text-align:center; font-size:12px; color:var(--text-muted);">
+            Нажмите «Завершить ✔», чтобы перенести персонажа в бланк.
+          </p>
         </div>
       `;
     }
 
     body.innerHTML = progressHtml + '<div style="margin-top:16px;">' + contentHtml + '</div>';
 
-    // Hook inputs
+    // Hook inputs & validate Next button state
     if (wizStep === 0) {
-      document.getElementById('wzName').addEventListener('input', e => wizData.name = e.target.value);
-      document.getElementById('wzConcept').addEventListener('input', e => wizData.concept = e.target.value);
+      document.getElementById('wzName').addEventListener('input', e => {
+        wizData.name = e.target.value;
+        btnNext.disabled = !wizData.name.trim();
+      });
+      document.getElementById('wzConcept').addEventListener('input', e => {
+        wizData.concept = e.target.value;
+      });
+      document.querySelectorAll('input[name="wzSelectedTrait"]').forEach(r => {
+        r.addEventListener('change', e => {
+          wizData.selectedTrait = e.target.value;
+          renderWizardStep();
+        });
+      });
+      btnNext.disabled = !wizData.name.trim();
     } else if (wizStep === 1) {
       document.querySelectorAll('.wz-attr-select').forEach(sel => {
         sel.addEventListener('change', e => {
           wizData.attrs[e.target.getAttribute('data-attr')] = e.target.value;
-          // validate exactly d6, d8, d8, d10
-          const counts = { d6:0, d8:0, d10:0 };
-          Object.values(wizData.attrs).forEach(v => { if(counts[v]!==undefined) counts[v]++; });
-          const isValid = counts.d6===1 && counts.d8===2 && counts.d10===1;
-          document.getElementById('wzAttrWarn').style.display = isValid ? 'none' : 'block';
-          btnNext.disabled = !isValid;
+          renderWizardStep();
         });
       });
+      const counts = { d6: 0, d8: 0, d10: 0 };
+      Object.values(wizData.attrs).forEach(v => { if (counts[v] !== undefined) counts[v]++; });
+      btnNext.disabled = !(counts.d6 === 1 && counts.d8 === 2 && counts.d10 === 1);
     } else if (wizStep === 2) {
       document.querySelectorAll('.wz-skill-cb').forEach(cb => {
         cb.addEventListener('change', () => {
-          const checked = Array.from(document.querySelectorAll('.wz-skill-cb:checked')).map(i => i.value);
-          wizData.skills = checked;
+          const maxSkills = getWizMaxSkills();
+          if (cb.checked) {
+            if (wizData.skills.length >= maxSkills) {
+              cb.checked = false;
+              showToast(`Лимит навыков исчерпан (${maxSkills})! Снимите отметку с другого навыка.`, 'warning');
+              return;
+            }
+            if (!wizData.skills.includes(cb.value)) {
+              wizData.skills.push(cb.value);
+            }
+          } else {
+            wizData.skills = wizData.skills.filter(name => name !== cb.value);
+          }
+          if (wizData.race === 'Эльф' && !wizData.skills.includes(wizData.elfDoubledSkill)) {
+            wizData.elfDoubledSkill = wizData.skills[0] || '';
+          }
+          renderWizardStep();
         });
       });
+
+      document.querySelectorAll('input[name="wzDwarfSpecial"]').forEach(r => {
+        r.addEventListener('change', e => {
+          wizData.dwarfSpecial = e.target.value;
+        });
+      });
+
+      const elfSel = document.getElementById('wzElfDoubled');
+      if (elfSel) {
+        elfSel.addEventListener('change', e => {
+          wizData.elfDoubledSkill = e.target.value;
+        });
+      }
+
+      const maxSkills = getWizMaxSkills();
+      btnNext.disabled = (wizData.skills.length !== maxSkills);
     } else if (wizStep === 3) {
       document.getElementById('wzInv').addEventListener('input', e => wizData.inventory = e.target.value);
+      btnNext.disabled = false;
+    } else if (wizStep === 4) {
+      btnNext.disabled = false;
     }
 
     btnPrev.style.display = wizStep === 0 ? 'none' : 'block';
@@ -2006,6 +2271,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.setWizRace = function(raceName) {
     wizData.race = raceName;
+    const race = GAME_DATA.races.find(r => r.name === raceName);
+    if (race && race.traits && race.traits.length > 0) {
+      const hasTrait = race.traits.some(t => t.id === wizData.selectedTrait);
+      if (!hasTrait) {
+        wizData.selectedTrait = race.traits[0].id;
+      }
+    }
+    const maxSkills = getWizMaxSkills();
+    if (wizData.skills.length > maxSkills) {
+      wizData.skills = wizData.skills.slice(0, maxSkills);
+    }
     renderWizardStep();
   };
 
@@ -2026,22 +2302,37 @@ document.addEventListener('DOMContentLoaded', () => {
       char.attributes.intellect.die = wizData.attrs.intellect;
       char.attributes.empathy.die = wizData.attrs.empathy;
       char.attributes.spirit.die = wizData.attrs.spirit;
-      char.skills = wizData.skills.join('\n');
-      char.inventory.text = wizData.inventory;
       
-      const raceData = GAME_DATA.races.find(r => r.name === wizData.race);
-      if (raceData) {
-        let addedKm = 0;
-        raceData.traits.forEach(t => { if(t.bonusKM) addedKm += t.bonusKM; });
-        char.km = { current: addedKm, max: addedKm };
-      } else {
-        char.km = { current: 0, max: 0 };
+      let finalSkills = [...wizData.skills];
+      if (wizData.race === 'Дворф' && wizData.selectedTrait === 'dwarf_knowledge' && wizData.dwarfSpecial) {
+        finalSkills.push(wizData.dwarfSpecial);
+      }
+      if (wizData.race === 'Эльф' && wizData.selectedTrait === 'elf_honed_skill' && wizData.elfDoubledSkill) {
+        finalSkills = finalSkills.map(sk => sk === wizData.elfDoubledSkill ? `${sk} (★ двойной)` : sk);
+      }
+      char.skills = finalSkills.join('\n');
+      char.inventory.text = wizData.inventory || '';
+      
+      // Calculate KM based on race and chosen trait
+      let addedKm = 0;
+      if (wizData.race === 'Человек') addedKm = 1;
+      else if (wizData.race === 'Эльф' && wizData.selectedTrait === 'elf_skills_km') addedKm = 2;
+      char.km = { current: addedKm, max: addedKm };
+      char.dinars = 100;
+
+      // Note race trait in notes if not already there
+      const activeTraitObj = (GAME_DATA.races.find(r => r.name === wizData.race)?.traits || []).find(t => t.id === wizData.selectedTrait);
+      if (activeTraitObj) {
+        const traitNote = `[Расовая черта: ${activeTraitObj.name} — ${activeTraitObj.effect}]`;
+        if (!char.notes.includes(activeTraitObj.name)) {
+          char.notes = char.notes ? `${traitNote}\n${char.notes}` : traitNote;
+        }
       }
       
       saveState();
       renderAll();
       closeModal('wizardModal');
-      showToast('Персонаж успешно создан из Мастера!', 'success');
+      showToast('Персонаж успешно создан и перенесен в бланк!', 'success');
     }
   });
 
