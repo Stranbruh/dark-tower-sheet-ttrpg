@@ -897,18 +897,25 @@ body {
 
 .grid-cell-label {
   position: absolute;
-  left: 3px;
+  left: 0;
   top: 0;
-  height: 100%;
+  width: calc(var(--item-cols, 1) * 100% + (var(--item-cols, 1) - 1) * 1px);
+  height: calc(var(--item-rows, 1) * 100% + (var(--item-rows, 1) - 1) * 1px);
   display: flex;
   align-items: center;
-  font-size: 10px;
+  justify-content: center;
+  text-align: center;
+  font-size: 11px;
   font-weight: 700;
   color: #0b2542;
-  white-space: nowrap;
   pointer-events: none;
   z-index: 5;
-  text-shadow: 0 0 3px rgba(255, 255, 255, 0.9);
+  text-shadow: 0 0 3px rgba(255, 255, 255, 0.95), 0 0 6px rgba(255, 255, 255, 0.9);
+  padding: 2px 4px;
+  box-sizing: border-box;
+  overflow: hidden;
+  word-break: break-word;
+  line-height: 1.15;
 }
 
 .inventory-list-view {
@@ -1140,6 +1147,30 @@ body {
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
+}
+
+.weapon-rules {
+  width: 100%;
+  height: 72px !important;
+  min-height: 72px !important;
+  max-height: 72px !important;
+  resize: none !important;
+  font-family: var(--font-body);
+  font-size: 11.5px !important;
+  line-height: 1.35 !important;
+  padding: 5px 8px !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: var(--radius);
+  background: var(--bg-input) !important;
+  color: var(--text-main);
+  box-sizing: border-box !important;
+  overflow-y: auto !important;
+}
+
+.paper-style .weapon-rules {
+  background: #ffffff !important;
+  border: 1px solid #000000 !important;
+  color: #000000 !important;
 }
 
 /* Магия */

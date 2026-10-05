@@ -452,17 +452,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('shieldName').addEventListener('input', e => { getActiveChar().defense.shield.name = e.target.value; saveState(); });
   document.getElementById('shieldDie').addEventListener('change', e => { getActiveChar().defense.shield.die = e.target.value; saveState(); });
-  document.getElementById('btnApplyDefenseDamage').addEventListener('click', () => {
-    const char = getActiveChar();
-    if (char.defense.shield.damaged < char.defense.shield.durMax) {
-      char.defense.shield.damaged++;
-      showToast('Щит получил урон', 'warning');
-    } else {
-      showToast('Щит уже сломан!', 'danger');
-    }
-    saveState();
-    renderDefense(char);
-  });
 
   function renderWeapons(char) {
     char.weapons.forEach((w, idx) => {
@@ -821,10 +810,17 @@ document.addEventListener('DOMContentLoaded', () => {
     char.inventory.items.forEach(item => {
       if (!item.cells || item.cells.length === 0) return;
       const sortedCells = [...item.cells].sort((a, b) => a - b);
-      const anchorCellIdx = sortedCells[0];
-
       const cols = item.cells.map(c => c % 25);
-      const itemWidth = Math.max(...cols) - Math.min(...cols) + 1;
+      const rows = item.cells.map(c => Math.floor(c / 25));
+
+      const minCol = Math.min(...cols);
+      const maxCol = Math.max(...cols);
+      const minRow = Math.min(...rows);
+      const maxRow = Math.max(...rows);
+
+      const itemWidth = maxCol - minCol + 1;
+      const itemHeight = maxRow - minRow + 1;
+      const topLeftIdx = minRow * 25 + minCol;
 
       item.cells.forEach(cIdx => {
         if (cells[cIdx]) {
@@ -833,12 +829,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
 
-      if (cells[anchorCellIdx]) {
+      const targetCell = cells[topLeftIdx] || cells[sortedCells[0]];
+      if (targetCell) {
         const label = document.createElement('span');
         label.className = 'grid-cell-label';
         label.textContent = item.name;
         label.style.setProperty('--item-cols', itemWidth);
-        cells[anchorCellIdx].appendChild(label);
+        label.style.setProperty('--item-rows', itemHeight);
+        targetCell.appendChild(label);
       }
     });
 
