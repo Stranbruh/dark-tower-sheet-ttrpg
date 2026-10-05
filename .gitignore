@@ -5,3 +5,5 @@ test_*.png
 screenshot_*.png
 pdf_page_*.png
 inventory_crop.png
+Снимок*.png
+*.tmp
