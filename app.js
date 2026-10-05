@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     name: '',
     race: '',
     concept: '',
-    km: 0,
+    km: { current: 0, max: 0 },
     dinars: 100,
     description: '',
     avatar: '',
@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
       empathy: { die: 'd8', damaged: 0 },
       spirit: { die: 'd10', damaged: 0 }
     },
-    scars: '',
+    scars: [],
     skills: '',
     perks: [],
     inventory: {
@@ -42,14 +42,11 @@ document.addEventListener('DOMContentLoaded', () => {
       shield: { name: '', die: '—', durMax: 8, damaged: 0 }
     },
     weapons: [
-      { name: '', die: '—', durMax: 10, damaged: 0, rules: '' },
-      { name: '', die: '—', durMax: 10, damaged: 0, rules: '' },
       { name: '', die: '—', durMax: 10, damaged: 0, rules: '' }
     ],
     magic: {
       disciplines: [
-        { name: '', attr: 'Дух' },
-        { name: '', attr: 'Телосложение' }
+        { name: 'Пиромантия', attr: 'Дух' }
       ],
       affect: 0,
       concentration: false,
@@ -57,6 +54,51 @@ document.addEventListener('DOMContentLoaded', () => {
     },
     notes: ''
   });
+
+  function normalizeCharacter(char) {
+    if (!char) return;
+    // KM: split into current and max
+    if (typeof char.km === 'number') {
+      char.km = { current: char.km, max: char.km };
+    } else if (!char.km || typeof char.km !== 'object') {
+      char.km = { current: 0, max: 0 };
+    }
+    if (char.km.current === undefined) char.km.current = 0;
+    if (char.km.max === undefined) char.km.max = 0;
+
+    // Scars: convert string to array of objects
+    if (typeof char.scars === 'string') {
+      char.scars = char.scars.trim()
+        ? char.scars.split('\n').filter(s => s.trim()).map(s => ({ id: 'scar_' + Math.random().toString(36).substr(2, 9), text: s.trim() }))
+        : [];
+    } else if (!Array.isArray(char.scars)) {
+      char.scars = [];
+    }
+
+    // Weapons: dynamic array
+    if (!Array.isArray(char.weapons) || char.weapons.length === 0) {
+      char.weapons = [
+        { name: '', die: '—', durMax: 10, damaged: 0, rules: '' }
+      ];
+    }
+
+    // Magic: dynamic disciplines
+    if (!char.magic || typeof char.magic !== 'object') {
+      char.magic = {
+        disciplines: [{ name: 'Пиромантия', attr: 'Дух' }],
+        affect: 0,
+        concentration: false,
+        notes: ''
+      };
+    } else {
+      if (!Array.isArray(char.magic.disciplines) || char.magic.disciplines.length === 0) {
+        char.magic.disciplines = [{ name: 'Пиромантия', attr: 'Дух' }];
+      }
+      if (char.magic.affect === undefined) char.magic.affect = 0;
+      if (char.magic.concentration === undefined) char.magic.concentration = false;
+      if (char.magic.notes === undefined) char.magic.notes = '';
+    }
+  }
 
   let AppState = {
     theme: 'dark',
@@ -78,6 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
       AppState.characters = [initialChar];
       AppState.activeCharId = initialChar.id;
     }
+    AppState.characters.forEach(normalizeCharacter);
     if (!AppState.activeCharId || !AppState.characters.find(c => c.id === AppState.activeCharId)) {
       AppState.activeCharId = AppState.characters[0].id;
     }
@@ -89,7 +132,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function getActiveChar() {
-    return AppState.characters.find(c => c.id === AppState.activeCharId) || AppState.characters[0];
+    const char = AppState.characters.find(c => c.id === AppState.activeCharId) || AppState.characters[0];
+    normalizeCharacter(char);
+    return char;
   }
 
   // ==========================================
@@ -224,12 +269,23 @@ document.addEventListener('DOMContentLoaded', () => {
   bindInput('charName', 'name');
   bindInput('charRace', 'race');
   bindInput('charConcept', 'concept');
-  bindInput('charKM', 'km', parseInt);
+  bindInput('charKmCurrent', 'km.current', parseInt);
+  bindInput('charKmMax', 'km.max', parseInt);
   bindInput('charDinars', 'dinars', parseFloat);
   bindInput('charDescription', 'description');
-  bindInput('charScars', 'scars');
   bindInput('charSkills', 'skills');
   bindInput('charNotes', 'notes');
+
+  const btnRestKm = document.getElementById('btnRestKm');
+  if (btnRestKm) {
+    btnRestKm.addEventListener('click', () => {
+      const char = getActiveChar();
+      char.km.current = char.km.max;
+      document.getElementById('charKmCurrent').value = char.km.current;
+      saveState();
+      showToast('Временные КМ восполнены до максимума (' + char.km.max + ')', 'success');
+    });
+  }
 
   function renderSheet() {
     const char = getActiveChar();
@@ -237,13 +293,14 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('charName').value = char.name;
     document.getElementById('charRace').value = char.race;
     document.getElementById('charConcept').value = char.concept;
-    document.getElementById('charKM').value = char.km || 0;
+    document.getElementById('charKmCurrent').value = char.km.current || 0;
+    document.getElementById('charKmMax').value = char.km.max || 0;
     document.getElementById('charDinars').value = char.dinars || 0;
     document.getElementById('charDescription').value = char.description;
-    document.getElementById('charScars').value = char.scars;
     document.getElementById('charSkills').value = char.skills;
     document.getElementById('charNotes').value = char.notes;
 
+    renderScars(char);
     renderAttributes(char);
     renderPerks(char);
     renderDefense(char);
@@ -453,22 +510,166 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('shieldName').addEventListener('input', e => { getActiveChar().defense.shield.name = e.target.value; saveState(); });
   document.getElementById('shieldDie').addEventListener('change', e => { getActiveChar().defense.shield.die = e.target.value; saveState(); });
 
-  function renderWeapons(char) {
-    char.weapons.forEach((w, idx) => {
-      const card = document.querySelector(`.weapon-card[data-weapon-idx="${idx}"]`);
-      if(!card) return;
-      card.querySelector('.weapon-name').value = w.name;
-      card.querySelector('.weapon-die').value = w.die;
-      card.querySelector('.weapon-rules').value = w.rules;
-      renderDurabilityBoxes(card.querySelector('.weapon-dur-boxes'), w.durMax, w.damaged, 'weapon', idx);
+  // --- ШРАМЫ ---
+  const scarsTbody = document.getElementById('scarsTbody');
+  const btnAddScarRow = document.getElementById('btnAddScarRow');
+
+  if (btnAddScarRow) {
+    btnAddScarRow.addEventListener('click', () => {
+      const char = getActiveChar();
+      if (!Array.isArray(char.scars)) char.scars = [];
+      char.scars.push({ id: 'scar_' + Date.now(), text: '' });
+      saveState();
+      renderScars(char);
     });
   }
 
-  document.querySelectorAll('.weapon-card').forEach((card, idx) => {
-    card.querySelector('.weapon-name').addEventListener('input', e => { getActiveChar().weapons[idx].name = e.target.value; saveState(); });
-    card.querySelector('.weapon-die').addEventListener('change', e => { getActiveChar().weapons[idx].die = e.target.value; saveState(); });
-    card.querySelector('.weapon-rules').addEventListener('input', e => { getActiveChar().weapons[idx].rules = e.target.value; saveState(); });
-  });
+  function renderScars(char) {
+    if (!scarsTbody) return;
+    scarsTbody.innerHTML = '';
+    if (!char.scars || char.scars.length === 0) {
+      scarsTbody.innerHTML = `<tr><td colspan="2" style="font-size:11px; color:var(--text-muted); text-align:center; padding:12px;">Шрамов нет. Нажмите «➕ Добавить», чтобы записать увечье.</td></tr>`;
+      return;
+    }
+    char.scars.forEach((s, idx) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><input type="text" class="scar-name-input" value="${s.text || ''}" placeholder="Рубец, хромота, потеря глаза..."></td>
+        <td class="no-print" style="text-align:right; white-space:nowrap;">
+          <button class="btn-heal-scar" title="Исцелить шрам ценой 2 постоянных КМ">🩹 -2 Пост. КМ</button>
+          <button class="btn btn-icon btn-delete-scar" style="color:var(--accent-crimson); margin-left:3px; padding:1px 4px; font-size:11px;" title="Удалить шрам без траты КМ">✕</button>
+        </td>
+      `;
+      tr.querySelector('.scar-name-input').addEventListener('input', (e) => {
+        s.text = e.target.value;
+        saveState();
+      });
+      tr.querySelector('.btn-heal-scar').addEventListener('click', () => {
+        healScar(idx);
+      });
+      tr.querySelector('.btn-delete-scar').addEventListener('click', () => {
+        char.scars.splice(idx, 1);
+        saveState();
+        renderScars(char);
+      });
+      scarsTbody.appendChild(tr);
+    });
+  }
+
+  function healScar(idx) {
+    const char = getActiveChar();
+    const scar = char.scars[idx];
+    if (!scar) return;
+    const scarTitle = scar.text || 'увечье';
+    const currentMaxKm = char.km && typeof char.km === 'object' ? (char.km.max || 0) : (char.km || 0);
+    if (currentMaxKm < 2) {
+      showToast(`Недостаточно постоянных КМ! Требуется 2 постоянных КМ (сейчас: ${currentMaxKm})`, 'danger');
+      return;
+    }
+    if (confirm(`Исцелить шрам «${scarTitle}» ценой 2 постоянных КМ?\nПостоянный максимум КМ уменьшится на 2.`)) {
+      if (typeof char.km === 'object') {
+        char.km.max -= 2;
+        if (char.km.current > char.km.max) char.km.current = char.km.max;
+      } else {
+        char.km -= 2;
+      }
+      char.scars.splice(idx, 1);
+      saveState();
+      renderSheet();
+      showToast(`Шрам «${scarTitle}» исцелен ценой 2 постоянных КМ!`, 'success');
+    }
+  }
+
+  // --- ОРУЖИЕ (Динамические слоты) ---
+  const weaponsContainer = document.getElementById('weaponsContainer');
+  const btnAddWeapon = document.getElementById('btnAddWeapon');
+
+  if (btnAddWeapon) {
+    btnAddWeapon.addEventListener('click', () => {
+      const char = getActiveChar();
+      if (!Array.isArray(char.weapons)) char.weapons = [];
+      char.weapons.push({ name: '', die: '—', durMax: 10, damaged: 0, rules: '' });
+      saveState();
+      renderWeapons(char);
+      showToast('Добавлен новый слот оружия', 'info');
+    });
+  }
+
+  function renderWeapons(char) {
+    if (!weaponsContainer) return;
+    weaponsContainer.innerHTML = '';
+    if (!char.weapons || char.weapons.length === 0) {
+      char.weapons = [{ name: '', die: '—', durMax: 10, damaged: 0, rules: '' }];
+    }
+
+    char.weapons.forEach((w, idx) => {
+      const card = document.createElement('div');
+      card.className = 'weapon-card';
+      card.dataset.weaponIdx = idx;
+      card.innerHTML = `
+        <div class="weapon-header-row">
+          <span class="info-label" style="min-width:auto; font-size:11px; flex-shrink:0;">Оружие ${idx + 1}</span>
+          <input type="text" class="input-underline weapon-name" value="${w.name || ''}" placeholder="Меч-Бастард, Алебарда, Лук..." style="flex:1; min-width:40px;">
+          <button class="btn btn-icon btn-danger btn-delete-weapon no-print" style="padding:1px 5px; font-size:11px;" title="Удалить это оружие">🗑️</button>
+        </div>
+        <div class="weapon-stats-row">
+          <div class="weapon-die-wrap">
+            <span class="info-label" style="min-width:auto; font-size:11px;">Урон</span>
+            <select class="die-select weapon-die" style="width:50px;">
+              <option value="—" ${w.die==='—'?'selected':''}>—</option>
+              <option value="d4" ${w.die==='d4'?'selected':''}>d4</option>
+              <option value="d6" ${w.die==='d6'?'selected':''}>d6</option>
+              <option value="d8" ${w.die==='d8'?'selected':''}>d8</option>
+              <option value="d10" ${w.die==='d10'?'selected':''}>d10</option>
+              <option value="d12" ${w.die==='d12'?'selected':''}>d12</option>
+              <option value="d20" ${w.die==='d20'?'selected':''}>d20</option>
+            </select>
+            <button class="btn btn-icon no-print weapon-roll-btn" style="padding:2px 6px; font-size:11px;" title="Бросить урон оружия">🎲 Урон</button>
+          </div>
+          <div class="durability-row" style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+            <span class="durability-label" style="font-size:11px; flex-shrink:0;">Прочность</span>
+            <div class="durability-boxes weapon-dur-boxes"></div>
+          </div>
+        </div>
+        <textarea class="textarea-clean weapon-rules" placeholder="Спецправила (Фехтовальное, Бронебойное, Дистанции...)">${w.rules || ''}</textarea>
+      `;
+
+      card.querySelector('.weapon-name').addEventListener('input', (e) => {
+        w.name = e.target.value;
+        saveState();
+      });
+      card.querySelector('.weapon-die').addEventListener('change', (e) => {
+        w.die = e.target.value;
+        saveState();
+      });
+      card.querySelector('.weapon-rules').addEventListener('input', (e) => {
+        w.rules = e.target.value;
+        saveState();
+      });
+      card.querySelector('.weapon-roll-btn').addEventListener('click', () => {
+        const d = dieValue(w.die);
+        if (d) {
+          openModal('diceModal');
+          performRoll(d, 'normal', `Урон: ${w.name || 'Оружие ' + (idx + 1)}`);
+        } else {
+          showToast('Выберите кость урона', 'warning');
+        }
+      });
+      card.querySelector('.btn-delete-weapon').addEventListener('click', () => {
+        if (char.weapons.length <= 1) {
+          char.weapons[0] = { name: '', die: '—', durMax: 10, damaged: 0, rules: '' };
+        } else {
+          char.weapons.splice(idx, 1);
+        }
+        saveState();
+        renderWeapons(char);
+        showToast('Оружие удалено', 'info');
+      });
+
+      renderDurabilityBoxes(card.querySelector('.weapon-dur-boxes'), w.durMax || 10, w.damaged || 0, 'weapon', idx);
+      weaponsContainer.appendChild(card);
+    });
+  }
 
   // --- ПЕРКИ ---
   const perksTbody = document.getElementById('perksTbody');
@@ -510,39 +711,99 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('totalKmSpent').textContent = total;
   }
 
-  // --- МАГИЯ ---
-  const magicRows = document.querySelectorAll('#magicDisciplinesTbody tr');
-  function renderMagic(char) {
-    magicRows.forEach((row, idx) => {
-      if (char.magic.disciplines[idx]) {
-        row.querySelector('.magic-disc-name').value = char.magic.disciplines[idx].name;
-        row.querySelector('.magic-disc-attr').value = char.magic.disciplines[idx].attr;
-      }
+  // --- МАГИЯ (Динамические дисциплины) ---
+  const magicDisciplinesTbody = document.getElementById('magicDisciplinesTbody');
+  const btnAddMagicDiscipline = document.getElementById('btnAddMagicDiscipline');
+
+  if (btnAddMagicDiscipline) {
+    btnAddMagicDiscipline.addEventListener('click', () => {
+      const char = getActiveChar();
+      if (!Array.isArray(char.magic.disciplines)) char.magic.disciplines = [];
+      char.magic.disciplines.push({ name: '', attr: 'Дух' });
+      saveState();
+      renderMagic(char);
     });
-    document.getElementById('magicAffectCount').value = char.magic.affect;
-    document.getElementById('magicConcentrationCheck').checked = char.magic.concentration;
-    document.getElementById('magicNotes').value = char.magic.notes;
   }
 
-  magicRows.forEach((row, idx) => {
-    row.querySelector('.magic-disc-name').addEventListener('input', e => { getActiveChar().magic.disciplines[idx].name = e.target.value; saveState(); });
-    row.querySelector('.magic-disc-attr').addEventListener('change', e => { getActiveChar().magic.disciplines[idx].attr = e.target.value; saveState(); });
+  function renderMagic(char) {
+    if (magicDisciplinesTbody) {
+      magicDisciplinesTbody.innerHTML = '';
+      if (!char.magic.disciplines || char.magic.disciplines.length === 0) {
+        magicDisciplinesTbody.innerHTML = `<tr><td colspan="3" style="font-size:11px; color:var(--text-muted); text-align:center; padding:8px;">Нет изученных дисциплин. Нажмите «➕ Дисциплина».</td></tr>`;
+      } else {
+        char.magic.disciplines.forEach((d, idx) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>
+              <input type="text" class="input-underline magic-disc-name" value="${d.name || ''}" placeholder="Пиромантия, Управление водой...">
+            </td>
+            <td>
+              <select class="die-select magic-disc-attr" style="width:100%;">
+                <option value="Дух" ${d.attr==='Дух'?'selected':''}>Дух</option>
+                <option value="Телосложение" ${d.attr==='Телосложение'?'selected':''}>Телосложение</option>
+                <option value="Интеллект" ${d.attr==='Интеллект'?'selected':''}>Интеллект</option>
+                <option value="Эмпатия" ${d.attr==='Эмпатия'?'selected':''}>Эмпатия</option>
+              </select>
+            </td>
+            <td class="no-print" style="text-align:center;">
+              <button class="btn btn-icon btn-delete-disc" style="color:var(--accent-crimson); padding:1px 4px; font-size:11px;" title="Удалить дисциплину">✕</button>
+            </td>
+          `;
+          tr.querySelector('.magic-disc-name').addEventListener('input', (e) => {
+            d.name = e.target.value;
+            saveState();
+          });
+          tr.querySelector('.magic-disc-attr').addEventListener('change', (e) => {
+            d.attr = e.target.value;
+            saveState();
+          });
+          tr.querySelector('.btn-delete-disc').addEventListener('click', () => {
+            char.magic.disciplines.splice(idx, 1);
+            saveState();
+            renderMagic(char);
+          });
+          magicDisciplinesTbody.appendChild(tr);
+        });
+      }
+    }
+
+    document.getElementById('magicAffectCount').value = char.magic.affect || 0;
+    document.getElementById('magicConcentrationCheck').checked = !!char.magic.concentration;
+    document.getElementById('magicNotes').value = char.magic.notes || '';
+  }
+
+  document.getElementById('magicAffectCount').addEventListener('input', e => { 
+    getActiveChar().magic.affect = parseInt(e.target.value) || 0; 
+    saveState(); 
   });
-  
-  document.getElementById('magicAffectCount').addEventListener('input', e => { getActiveChar().magic.affect = parseInt(e.target.value) || 0; saveState(); });
-  document.getElementById('magicConcentrationCheck').addEventListener('change', e => { getActiveChar().magic.concentration = e.target.checked; saveState(); });
-  document.getElementById('magicNotes').addEventListener('input', e => { getActiveChar().magic.notes = e.target.value; saveState(); });
+  document.getElementById('magicConcentrationCheck').addEventListener('change', e => { 
+    getActiveChar().magic.concentration = e.target.checked; 
+    saveState(); 
+  });
+  document.getElementById('magicNotes').addEventListener('input', e => { 
+    getActiveChar().magic.notes = e.target.value; 
+    saveState(); 
+  });
   
   document.getElementById('btnResetAffectKm').addEventListener('click', () => {
     const char = getActiveChar();
-    if (char.magic.affect > 0 && char.km > 0) {
+    if (char.magic.affect <= 0) {
+      showToast('Аффект уже равен 0', 'info');
+      return;
+    }
+    const currentKm = (char.km && typeof char.km === 'object') ? (char.km.current || 0) : (char.km || 0);
+    if (currentKm >= 1) {
+      if (typeof char.km === 'object') {
+        char.km.current--;
+      } else {
+        char.km--;
+      }
       char.magic.affect--;
-      char.km--;
       saveState();
       renderSheet();
-      showToast('Аффект снижен за счет 1 КМ', 'success');
+      showToast(`Снят 1 Аффект за 1 временный КМ (Осталось временных КМ: ${char.km.current})`, 'success');
     } else {
-      showToast('Недостаточно КМ или аффект уже 0', 'danger');
+      showToast('Недостаточно временных КМ! Требуется 1 временный КМ.', 'danger');
     }
   });
 
@@ -618,13 +879,6 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => {
       const d = dieValue(getActiveChar().defense.armor[idx].die);
       if (d) { openModal('diceModal'); performRoll(d, 'normal', `Бросок брони ${idx+1}`); }
-    });
-  });
-
-  document.querySelectorAll('.weapon-roll-btn').forEach((btn, idx) => {
-    btn.addEventListener('click', () => {
-      const d = dieValue(getActiveChar().weapons[idx].die);
-      if (d) { openModal('diceModal'); performRoll(d, 'normal', `Урон: ${getActiveChar().weapons[idx].name || 'Оружие'}`); }
     });
   });
 
@@ -1409,16 +1663,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const container = document.getElementById('quickPresetsBody');
     container.innerHTML = '<h4 style="color:var(--accent-gold); margin-bottom:8px;">Оружие</h4>';
     
+    const char = getActiveChar();
     const weapons = [...(GAME_DATA.equipment.melee_weapons || []), ...(GAME_DATA.equipment.ranged_weapons || [])];
     weapons.forEach(w => {
+      let buttonsHtml = '';
+      (char.weapons || []).forEach((cw, sIdx) => {
+        buttonsHtml += `<button class="btn btn-equip-weapon" data-action="slot" data-idx="${sIdx}" data-json='${JSON.stringify(w)}'>В слот ${sIdx + 1}</button>`;
+      });
+      buttonsHtml += `<button class="btn btn-primary btn-equip-weapon" data-action="new" data-json='${JSON.stringify(w)}'>➕ В новый слот</button>`;
+
       container.innerHTML += `
         <div class="comp-card" style="margin-bottom:8px;">
           <div class="comp-card-title">${w.name} <span style="font-size:12px; color:var(--text-muted);">(${w.damage || w.die}, Пр:${w.durability})</span></div>
           <div class="shop-item-rules" style="margin-bottom:8px;">${w.rules}</div>
-          <div style="display:flex; gap:6px;">
-            <button class="btn btn-primary btn-equip-weapon" data-idx="0" data-json='${JSON.stringify(w)}'>В слот 1</button>
-            <button class="btn btn-equip-weapon" data-idx="1" data-json='${JSON.stringify(w)}'>В слот 2</button>
-            <button class="btn btn-equip-weapon" data-idx="2" data-json='${JSON.stringify(w)}'>В слот 3</button>
+          <div style="display:flex; flex-wrap:wrap; gap:6px;">
+            ${buttonsHtml}
           </div>
         </div>
       `;
@@ -1452,10 +1711,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('.btn-equip-weapon').forEach(btn => {
       btn.addEventListener('click', e => {
-        const idx = parseInt(e.target.getAttribute('data-idx'));
+        const action = e.target.getAttribute('data-action');
         const data = JSON.parse(e.target.getAttribute('data-json'));
         const char = getActiveChar();
-        char.weapons[idx] = { name: data.name, die: data.damage || data.die, rules: data.rules, durMax: data.durability, damaged: 0 };
+        const newWp = { name: data.name, die: data.damage || data.die, rules: data.rules, durMax: data.durability, damaged: 0 };
+        if (action === 'new') {
+          char.weapons.push(newWp);
+        } else {
+          const idx = parseInt(e.target.getAttribute('data-idx'));
+          char.weapons[idx] = newWp;
+        }
         saveState(); renderWeapons(char); closeModal('quickPresetsModal'); showToast(`Оружие ${data.name} экипировано`, 'success');
       });
     });
@@ -1477,11 +1742,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const char = getActiveChar();
     
     // Quick UI for magic calculator
+    const activeDiscs = (char.magic.disciplines && char.magic.disciplines.filter(d => d.name && d.name.trim())) || [];
+    const discOptions = activeDiscs.length > 0
+      ? activeDiscs.map((d, i) => `<option value="char_${i}">${d.name} (${d.attr || 'Дух'})</option>`).join('')
+      : GAME_DATA.magic.disciplines.map((d, i) => `<option value="game_${i}">${d.name} (${d.attr})</option>`).join('');
+
     container.innerHTML = `
       <div class="magic-calc-box">
         <label>Дисциплина:</label>
         <select id="mcDiscipline" class="die-select" style="width:100%; color:var(--text-main); background:var(--bg-input);">
-          ${GAME_DATA.magic.disciplines.map((d, i) => `<option value="${i}">${d.name} (${d.attr})</option>`).join('')}
+          ${discOptions}
         </select>
         
         <label>Уровень эффекта (базовая сложность):</label>
@@ -1510,7 +1780,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <option value="3">+3 ступени (запредельно)</option>
         </select>
         
-        <div style="font-size:12px; color:var(--text-muted);">Текущий Аффект персонажа: <strong style="color:var(--accent-crimson)">+${char.magic.affect}</strong> ступеней</div>
+        <div style="font-size:12px; color:var(--text-muted);">Текущий Аффект персонажа: <strong style="color:var(--accent-crimson)">+${char.magic.affect || 0}</strong> ступеней</div>
         
         <div class="calc-result-pill" style="margin-top:10px;">
           Итоговая Сложность (СЛ): <span id="mcFinalSL">d4</span>
@@ -1532,7 +1802,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function recalcMagic() {
       let baseIdx = slLadder.indexOf(parseInt(mcBaseSL.value));
       if (baseIdx === -1) baseIdx = 0;
-      let totalSteps = baseIdx + parseInt(mcArmorPenalty.value) + parseInt(mcRangePenalty.value) + char.magic.affect;
+      let totalSteps = baseIdx + parseInt(mcArmorPenalty.value) + parseInt(mcRangePenalty.value) + (char.magic.affect || 0);
       if (totalSteps >= slLadder.length) totalSteps = slLadder.length - 1; // max d20
       finalDie = slLadder[totalSteps];
       mcFinalSL.textContent = 'd' + finalDie;
@@ -1542,8 +1812,21 @@ document.addEventListener('DOMContentLoaded', () => {
     recalcMagic();
 
     document.getElementById('mcRollBtn').addEventListener('click', () => {
-      const disc = GAME_DATA.magic.disciplines[parseInt(mcDiscipline.value)];
-      const attrName = disc.attr.split(' ')[0]; // Handle "Телосложение (сила — Эмпатия)"
+      const val = mcDiscipline.value;
+      let discName = 'Магия';
+      let attrName = 'Дух';
+      if (val.startsWith('char_')) {
+        const cIdx = parseInt(val.replace('char_', ''));
+        const d = activeDiscs[cIdx];
+        discName = d.name;
+        attrName = d.attr || 'Дух';
+      } else {
+        const gIdx = parseInt(val.replace('game_', ''));
+        const d = GAME_DATA.magic.disciplines[gIdx];
+        discName = d.name;
+        attrName = d.attr;
+      }
+
       let actualAttr = 'spirit';
       if (attrName.includes('Телосложение')) actualAttr = 'constitution';
       if (attrName.includes('Интеллект')) actualAttr = 'intellect';
@@ -1567,14 +1850,14 @@ document.addEventListener('DOMContentLoaded', () => {
       rollDetails.textContent = success ? `УСПЕХ! Магия сотворена.` : `ПРОВАЛ. Магия не сработала.`;
       
       if (success) {
-        char.magic.affect++;
+        char.magic.affect = (char.magic.affect || 0) + 1;
         saveState();
         renderSheet();
         showToast('Успех: Аффект увеличен на 1', 'warning');
       }
 
       const histItem = document.createElement('div');
-      histItem.innerHTML = `<strong style="color:${success ? 'var(--success-color)' : 'var(--accent-crimson)'}">${disc.name}:</strong> Игрок d${charDie} [${playerRoll}] против СЛ d${finalDie} [${difficultyRoll}] - <strong>${success ? 'УСПЕХ' : 'ПРОВАЛ'}</strong>`;
+      histItem.innerHTML = `<strong style="color:${success ? 'var(--success-color)' : 'var(--accent-crimson)'}">${discName}:</strong> Игрок d${charDie} [${playerRoll}] против СЛ d${finalDie} [${difficultyRoll}] - <strong>${success ? 'УСПЕХ' : 'ПРОВАЛ'}</strong>`;
       rollHistory.prepend(histItem);
     });
   });
@@ -1751,7 +2034,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (raceData) {
         let addedKm = 0;
         raceData.traits.forEach(t => { if(t.bonusKM) addedKm += t.bonusKM; });
-        char.km = addedKm;
+        char.km = { current: addedKm, max: addedKm };
+      } else {
+        char.km = { current: 0, max: 0 };
       }
       
       saveState();

@@ -499,6 +499,72 @@ body {
   color: #000;
 }
 
+/* Бейджи КМ (Временные / Постоянные) */
+.km-badge-block {
+  min-width: 145px;
+}
+
+.km-box-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.km-subcol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.km-sublabel {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.km-input {
+  width: 44px !important;
+  font-size: 16px !important;
+  margin-top: 0 !important;
+  text-align: center;
+}
+
+.km-slash {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent-gold);
+  margin-top: 10px;
+}
+
+.km-rest-btn {
+  font-size: 13px;
+  padding: 3px 5px !important;
+  margin-top: 10px;
+  border-radius: var(--radius);
+  color: var(--accent-gold);
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+}
+
+.km-rest-btn:hover {
+  background: var(--bg-hover);
+  color: #fff;
+}
+
+.paper-style .km-slash {
+  color: #000;
+}
+
+.paper-style .km-rest-btn {
+  color: #000;
+  border: 1px solid #000;
+}
+
 /* Описание */
 .box-desc {
   border: 2px solid var(--border-color);
@@ -747,6 +813,80 @@ body {
   text-align: center;
   font-size: 11px;
   padding: 1px;
+}
+
+/* Блок Шрамов */
+.box-scars {
+  display: flex;
+  flex-direction: column;
+}
+
+.scars-table-wrap {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 180px;
+}
+
+.scars-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.scars-table th {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  padding: 4px 6px;
+  font-family: var(--font-heading);
+  font-size: 11px;
+  text-align: left;
+}
+
+.scars-table td {
+  border: 1px solid var(--border-color);
+  padding: 3px 4px;
+}
+
+.scar-name-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  background: transparent;
+  color: var(--text-main);
+  font-family: var(--font-body);
+  font-size: 12px;
+  outline: none;
+}
+
+.paper-style .scar-name-input {
+  color: #000;
+}
+
+.btn-heal-scar {
+  font-size: 10px;
+  padding: 2px 6px;
+  white-space: nowrap;
+  background: rgba(212, 163, 75, 0.15);
+  border: 1px solid var(--accent-gold);
+  color: var(--accent-gold);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-heal-scar:hover {
+  background: var(--accent-gold);
+  color: #000;
+}
+
+.paper-style .btn-heal-scar {
+  background: #f0f0f0;
+  border: 1px solid #000;
+  color: #000;
+}
+
+.paper-style .btn-heal-scar:hover {
+  background: #000;
+  color: #fff;
 }
 
 /* --- РЯД 3: Перки | Снаряжение --- */
@@ -1108,18 +1248,26 @@ body {
 }
 
 /* Оружие */
+.weapons-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .weapon-card {
-  border-bottom: 2px solid var(--border-color);
+  border: 1px solid var(--border-color);
   padding: 6px 8px;
   display: flex;
   flex-direction: column;
   gap: 5px;
   min-width: 0;
   box-sizing: border-box;
+  background: var(--bg-card);
+  border-radius: var(--radius);
 }
 
 .weapon-card:last-child {
-  border-bottom: none;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .weapon-header-row {
@@ -1176,7 +1324,6 @@ body {
 /* Магия */
 .magic-disciplines-table {
   width: 100%;
-  table-layout: fixed;
   border-collapse: collapse;
 }
 
@@ -1191,12 +1338,18 @@ body {
 
 .magic-disciplines-table th:first-child,
 .magic-disciplines-table td:first-child {
-  width: 58%;
+  width: auto;
 }
 
-.magic-disciplines-table th:last-child,
-.magic-disciplines-table td:last-child {
-  width: 42%;
+.magic-disciplines-table th:nth-child(2),
+.magic-disciplines-table td:nth-child(2) {
+  width: 105px;
+}
+
+.magic-disciplines-table th:nth-child(3),
+.magic-disciplines-table td:nth-child(3) {
+  width: 28px;
+  text-align: center;
 }
 
 .magic-disciplines-table td {
@@ -1800,7 +1953,7 @@ body {
     border-color: #000 !important;
   }
 
-  .attr-table th, .perks-table th, .magic-disciplines-table th {
+  .attr-table th, .perks-table th, .scars-table th, .magic-disciplines-table th {
     background: #eee !important;
     color: #000 !important;
     border-color: #000 !important;
@@ -1808,7 +1961,7 @@ body {
     print-color-adjust: exact;
   }
 
-  .attr-table td, .perks-table td, .magic-disciplines-table td {
+  .attr-table td, .perks-table td, .scars-table td, .magic-disciplines-table td {
     border-color: #000 !important;
   }
 

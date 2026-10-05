@@ -105,9 +105,20 @@
           </div>
 
           <div class="info-badges">
-            <div class="badge-block">
+            <div class="badge-block km-badge-block">
               <div class="badge-label">Кости мощи</div>
-              <input type="number" id="charKM" class="badge-input" value="0" min="0" max="99">
+              <div class="km-box-container">
+                <div class="km-subcol" title="Временные (текущие) КМ — тратятся на способности, перебросы, снятие аффекта">
+                  <span class="km-sublabel">ВРЕМ.</span>
+                  <input type="number" id="charKmCurrent" class="badge-input km-input" value="0" min="0" max="99">
+                </div>
+                <span class="km-slash">/</span>
+                <div class="km-subcol" title="Постоянные (максимальные) КМ — общий потенциал героя">
+                  <span class="km-sublabel">ПОСТ.</span>
+                  <input type="number" id="charKmMax" class="badge-input km-input" value="0" min="0" max="99">
+                </div>
+                <button id="btnRestKm" class="btn btn-icon no-print km-rest-btn" title="Восполнить временные КМ до максимума (Отдых)">⟳</button>
+              </div>
             </div>
             <div class="badge-block">
               <div class="badge-label">Динары</div>
@@ -251,11 +262,24 @@
         </div>
 
         <!-- Шрамы -->
-        <div class="sheet-box">
+        <div class="sheet-box box-scars">
           <div class="sheet-box-header">
             <span>Шрамы</span>
+            <button id="btnAddScarRow" class="btn btn-icon no-print" style="padding:1px 5px; font-size:10px;" title="Добавить новый шрам или увечье">➕ Добавить</button>
           </div>
-          <textarea id="charScars" class="textarea-clean" style="height:100%; min-height:120px;" placeholder="Полученные травмы, шрамы, увечья и последствия..."></textarea>
+          <div class="scars-table-wrap">
+            <table class="scars-table" id="scarsTable">
+              <thead>
+                <tr>
+                  <th>Шрам / увечье</th>
+                  <th class="no-print" style="width:125px; text-align:right;">Исцеление</th>
+                </tr>
+              </thead>
+              <tbody id="scarsTbody">
+                <!-- Динамические строки со шрамами -->
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <!-- Навыки -->
@@ -465,96 +489,18 @@
           </div>
         </div>
 
-        <!-- Оружие (3 слота с костью урона, прочностью и спецправилами) -->
+        <!-- Оружие (динамические слоты) -->
         <div class="sheet-box">
           <div class="sheet-box-header">
             <span>Оружие</span>
-            <button id="btnQuickWeapons" class="btn btn-icon no-print" style="padding:1px 5px; font-size:10px;" title="Выбрать оружие из каталога">⚔️ Каталог</button>
+            <div style="display:flex; gap:4px; align-items:center;">
+              <button id="btnQuickWeapons" class="btn btn-icon no-print" style="padding:1px 5px; font-size:10px;" title="Выбрать оружие из справочника">⚔️ Каталог</button>
+              <button id="btnAddWeapon" class="btn btn-icon no-print" style="padding:1px 5px; font-size:10px;" title="Добавить слот оружия">➕ Добавить</button>
+            </div>
           </div>
 
-          <div id="weaponsContainer">
-            <!-- Оружие 1 -->
-            <div class="weapon-card" data-weapon-idx="0">
-              <div class="weapon-header-row">
-                <span class="info-label" style="min-width:auto; font-size:11px; flex-shrink:0;">Оружие</span>
-                <input type="text" class="input-underline weapon-name" placeholder="Меч-Бастард, Лук, Алебарда..." style="flex:1; min-width:40px;">
-              </div>
-              <div class="weapon-stats-row">
-                <div class="weapon-die-wrap">
-                  <span class="info-label" style="min-width:auto; font-size:11px;">Урон</span>
-                  <select class="die-select weapon-die" style="width:50px;">
-                    <option value="—">—</option>
-                    <option value="d4">d4</option>
-                    <option value="d6">d6</option>
-                    <option value="d8">d8</option>
-                    <option value="d10">d10</option>
-                    <option value="d12">d12</option>
-                  </select>
-                  <button class="btn btn-icon no-print weapon-roll-btn" style="padding:2px 6px; font-size:11px;" title="Бросить урон оружия">🎲 Урон</button>
-                </div>
-                <div class="durability-row" style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
-                  <span class="durability-label" style="font-size:11px; flex-shrink:0;">Прочность</span>
-                  <div class="durability-boxes weapon-dur-boxes">
-                    <!-- 10 квадратов (2 ряда по 5) -->
-                  </div>
-                </div>
-              </div>
-              <textarea class="textarea-clean weapon-rules" placeholder="Спецправила (Фехтовальное, Бронебойное, Дистанции...)"></textarea>
-            </div>
-
-            <!-- Оружие 2 -->
-            <div class="weapon-card" data-weapon-idx="1">
-              <div class="weapon-header-row">
-                <span class="info-label" style="min-width:auto; font-size:11px; flex-shrink:0;">Оружие</span>
-                <input type="text" class="input-underline weapon-name" style="flex:1; min-width:40px;">
-              </div>
-              <div class="weapon-stats-row">
-                <div class="weapon-die-wrap">
-                  <span class="info-label" style="min-width:auto; font-size:11px;">Урон</span>
-                  <select class="die-select weapon-die" style="width:50px;">
-                    <option value="—">—</option>
-                    <option value="d4">d4</option>
-                    <option value="d6">d6</option>
-                    <option value="d8">d8</option>
-                    <option value="d10">d10</option>
-                    <option value="d12">d12</option>
-                  </select>
-                  <button class="btn btn-icon no-print weapon-roll-btn" style="padding:2px 6px; font-size:11px;" title="Бросить урон оружия">🎲 Урон</button>
-                </div>
-                <div class="durability-row" style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
-                  <span class="durability-label" style="font-size:11px; flex-shrink:0;">Прочность</span>
-                  <div class="durability-boxes weapon-dur-boxes"></div>
-                </div>
-              </div>
-              <textarea class="textarea-clean weapon-rules" placeholder="Спецправила"></textarea>
-            </div>
-
-            <!-- Оружие 3 -->
-            <div class="weapon-card" data-weapon-idx="2">
-              <div class="weapon-header-row">
-                <span class="info-label" style="min-width:auto; font-size:11px; flex-shrink:0;">Оружие</span>
-                <input type="text" class="input-underline weapon-name" style="flex:1; min-width:40px;">
-              </div>
-              <div class="weapon-stats-row">
-                <div class="weapon-die-wrap">
-                  <span class="info-label" style="min-width:auto; font-size:11px;">Урон</span>
-                  <select class="die-select weapon-die" style="width:50px;">
-                    <option value="—">—</option>
-                    <option value="d4">d4</option>
-                    <option value="d6">d6</option>
-                    <option value="d8">d8</option>
-                    <option value="d10">d10</option>
-                    <option value="d12">d12</option>
-                  </select>
-                  <button class="btn btn-icon no-print weapon-roll-btn" style="padding:2px 6px; font-size:11px;" title="Бросить урон оружия">🎲 Урон</button>
-                </div>
-                <div class="durability-row" style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
-                  <span class="durability-label" style="font-size:11px; flex-shrink:0;">Прочность</span>
-                  <div class="durability-boxes weapon-dur-boxes"></div>
-                </div>
-              </div>
-              <textarea class="textarea-clean weapon-rules" placeholder="Спецправила"></textarea>
-            </div>
+          <div id="weaponsContainer" class="weapons-list">
+            <!-- Динамические карточки оружия -->
           </div>
         </div>
 
@@ -562,39 +508,22 @@
         <div class="sheet-box">
           <div class="sheet-box-header">
             <span>Магия</span>
-            <button id="btnQuickMagic" class="btn btn-icon no-print" style="padding:1px 5px; font-size:10px;" title="Открыть справочник заклинаний и сложностей">✨ Дисциплины</button>
+            <div style="display:flex; gap:4px; align-items:center;">
+              <button id="btnQuickMagic" class="btn btn-icon no-print" style="padding:1px 5px; font-size:10px;" title="Открыть справочник заклинаний и сложностей">✨ Дисциплины</button>
+              <button id="btnAddMagicDiscipline" class="btn btn-icon no-print" style="padding:1px 5px; font-size:10px;" title="Добавить новую дисциплину">➕ Дисциплина</button>
+            </div>
           </div>
 
           <table class="magic-disciplines-table">
             <thead>
               <tr>
                 <th>Магическая дисциплина</th>
-                <th style="width:100px;">Атрибут</th>
+                <th style="width:110px;">Атрибут</th>
+                <th class="no-print" style="width:28px;"></th>
               </tr>
             </thead>
             <tbody id="magicDisciplinesTbody">
-              <tr>
-                <td><input type="text" class="input-underline magic-disc-name" placeholder="Пиромантия"></td>
-                <td>
-                  <select class="die-select magic-disc-attr">
-                    <option value="Дух">Дух</option>
-                    <option value="Телосложение">Телосложение</option>
-                    <option value="Интеллект">Интеллект</option>
-                    <option value="Эмпатия">Эмпатия</option>
-                  </select>
-                </td>
-              </tr>
-              <tr>
-                <td><input type="text" class="input-underline magic-disc-name" placeholder="Управление водой"></td>
-                <td>
-                  <select class="die-select magic-disc-attr">
-                    <option value="Эмпатия">Эмпатия</option>
-                    <option value="Телосложение">Телосложение</option>
-                    <option value="Интеллект">Интеллект</option>
-                    <option value="Дух">Дух</option>
-                  </select>
-                </td>
-              </tr>
+              <!-- Динамические строки дисциплин -->
             </tbody>
           </table>
 
