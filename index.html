@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Темная Башня — Интерактивный бланк персонажа</title>
+  <!-- Google Fonts: Cinzel, MedievalSharp, Lora -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=MedievalSharp&family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23121316'/><text y='.75em' x='50' text-anchor='middle' font-size='65'>🏰</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-theme="dark">
+
+  <!-- ==========================================================================
+       Панель инструментов (App Navigation Bar)
+       ========================================================================== -->
+  <header class="top-bar no-print">
+    <div class="top-bar-left">
+      <div class="brand-title">
+        <svg class="brand-icon" viewBox="0 0 24 24">
+          <path d="M12 2L4 7v13h16V7l-8-5zm6 16H6V8.2l6-3.8 6 3.8V18zM9 10h6v2H9v-2zm0 4h6v2H9v-2z"/>
+        </svg>
+        <span>ТЕМНАЯ БАШНЯ</span>
+      </div>
+
+      <div class="character-select-wrap">
+        <label for="characterSelect" class="info-label" style="min-width:auto; font-size:12px;">Герой:</label>
+        <select id="characterSelect">
+          <option value="char_1">Герой 1</option>
+        </select>
+        <button id="btnNewChar" class="btn btn-icon" title="Создать нового персонажа">➕</button>
+        <button id="btnDeleteChar" class="btn btn-icon btn-danger" title="Удалить текущего персонажа">🗑️</button>
+      </div>
+    </div>
+
+    <div class="top-bar-actions">
+      <!-- Мастер создания -->
+      <button id="btnOpenWizard" class="btn btn-primary" title="Пошаговый мастер создания персонажа по правилам">
+        🧙 Мастер создания
+      </button>
+
+      <!-- Бросок костей -->
+      <button id="btnOpenDice" class="btn" title="Бросить кости (d4 - d20)">
+        🎲 Бросок костей
+      </button>
+
+      <!-- Справочник правил -->
+      <button id="btnOpenCompendium" class="btn" title="Справочник правил, оружия, перков и магии">
+        📖 Справочник правил
+      </button>
+
+      <!-- Магазин снаряжения -->
+      <button id="btnOpenShop" class="btn" title="Каталог и покупка снаряжения">
+        🛒 Магазин (100⌘)
+      </button>
+
+      <!-- Переключатель темы -->
+      <select id="themeSelector" class="btn" style="padding: 5px 8px;">
+        <option value="dark">🌑 Тёмная тема</option>
+        <option value="parchment">📜 Пергамент</option>
+        <option value="paper">📄 Лист бланка</option>
+      </select>
+
+      <!-- Экспорт / Импорт / Печать -->
+      <button id="btnExportJson" class="btn" title="Скачать персонажа (JSON)">💾 Экспорт</button>
+      <button id="btnImportJson" class="btn" title="Загрузить файл (JSON)">📂 Импорт</button>
+      <input type="file" id="importFileInput" accept=".json" style="display:none;">
+      <button id="btnPrintSheet" class="btn btn-primary" title="Печать или экспорт в PDF (А4)">🖨️ Печать / PDF</button>
+    </div>
+  </header>
+
+  <!-- ==========================================================================
+       Основное полотно бланка персонажа
+       ========================================================================== -->
+  <main class="main-content">
+    <div class="sheet-container" id="characterSheetContainer">
+
+      <!-- РЯД 1: Логотип | Данные персонажа | Описание -->
+      <section class="row-header">
+        
+        <!-- Логотип (Аутентичный блок как на бланке) -->
+        <div class="sheet-box box-logo">
+          <div class="logo-text-top">Темная</div>
+          <div class="logo-text-bottom">Башня</div>
+        </div>
+
+        <!-- Данные персонажа: Имя, Раса, Концепция, Кости мощи, Динары -->
+        <div class="sheet-box box-info">
+          <div class="info-fields">
+            <div class="info-field-row">
+              <label class="info-label" for="charName">Имя</label>
+              <input type="text" id="charName" class="input-underline" placeholder="Имя искателя приключений">
+            </div>
+            <div class="info-field-row">
+              <label class="info-label" for="charRace">Раса</label>
+              <input type="text" id="charRace" class="input-underline" placeholder="Человек, Эльф, Дворф, Орк...">
+            </div>
+            <div class="info-field-row">
+              <label class="info-label" for="charConcept">Концепция</label>
+              <input type="text" id="charConcept" class="input-underline" placeholder="Ветеран севера, Бродячий пиромант...">
+            </div>
+          </div>
+
+          <div class="info-badges">
+            <div class="badge-block">
+              <div class="badge-label">Кости мощи</div>
+              <input type="number" id="charKM" class="badge-input" value="0" min="0" max="99">
+            </div>
+            <div class="badge-block">
+              <div class="badge-label">Динары</div>
+              <input type="number" id="charDinars" class="badge-input" value="100" min="0" step="0.5">
+            </div>
+          </div>
+        </div>
+
+        <!-- Описание -->
+        <div class="sheet-box box-desc">
+          <div class="box-title-simple">
+            <span>Описание</span>
+            <div class="desc-header-actions no-print" style="display:flex; gap:4px; align-items:center;">
+              <button id="btnUploadAvatar" class="btn btn-icon" style="padding:1px 6px; font-size:10px;" title="Загрузить портрет или арт персонажа">🖼️ Арт</button>
+              <button id="btnRemoveAvatar" class="btn btn-icon" style="padding:1px 6px; font-size:10px; color:var(--accent-crimson); display:none;" title="Удалить арт">✕</button>
+              <input type="file" id="avatarFileInput" accept="image/*" style="display:none;">
+            </div>
+          </div>
+          <div class="desc-body-wrap">
+            <div id="avatarContainer" class="avatar-preview-box" style="display:none;" title="Кликните, чтобы сменить арт">
+              <img id="avatarImage" src="" alt="Портрет" class="avatar-img">
+            </div>
+            <textarea id="charDescription" class="textarea-clean" placeholder="Внешность, характер, отличительные приметы..."></textarea>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- РЯД 2: Атрибуты и здоровье | Шрамы | Навыки -->
+      <section class="row-stats">
+        
+        <!-- Атрибуты и здоровье (20 делений с ключевыми чекбоксами d4..d20) -->
+        <div class="sheet-box">
+          <div class="sheet-box-header">
+            <span>Атрибуты и здоровье</span>
+          </div>
+          <table class="attr-table">
+            <thead>
+              <tr>
+                <th style="width:110px;">Атрибут</th>
+                <th style="width:65px;">Кость</th>
+                <th>Очки здоровья (ОЗ)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Телосложение -->
+              <tr data-attr="constitution">
+                <td class="attr-name-cell">
+                  <div class="attr-name-wrap">
+                    <span>Телосложение</span>
+                    <button class="attr-roll-btn no-print" title="Бросить кость Телосложения">🎲</button>
+                  </div>
+                </td>
+                <td class="attr-die-cell">
+                  <select class="die-select" id="die_constitution">
+                    <option value="d4">d4</option>
+                    <option value="d6" selected>d6</option>
+                    <option value="d8">d8</option>
+                    <option value="d10">d10</option>
+                    <option value="d12">d12</option>
+                    <option value="d20">d20</option>
+                  </select>
+                </td>
+                <td class="hp-track-cell">
+                  <div class="hp-track-wrap" id="hpTrack_constitution">
+                    <!-- Генерируется динамически (2 ряда по 10 квадратов) -->
+                  </div>
+                </td>
+              </tr>
+
+              <!-- Интеллект -->
+              <tr data-attr="intellect">
+                <td class="attr-name-cell">
+                  <div class="attr-name-wrap">
+                    <span>Интеллект</span>
+                    <button class="attr-roll-btn no-print" title="Бросить кость Интеллекта">🎲</button>
+                  </div>
+                </td>
+                <td class="attr-die-cell">
+                  <select class="die-select" id="die_intellect">
+                    <option value="d4">d4</option>
+                    <option value="d6">d6</option>
+                    <option value="d8" selected>d8</option>
+                    <option value="d10">d10</option>
+                    <option value="d12">d12</option>
+                    <option value="d20">d20</option>
+                  </select>
+                </td>
+                <td class="hp-track-cell">
+                  <div class="hp-track-wrap" id="hpTrack_intellect"></div>
+                </td>
+              </tr>
+
+              <!-- Эмпатия -->
+              <tr data-attr="empathy">
+                <td class="attr-name-cell">
+                  <div class="attr-name-wrap">
+                    <span>Эмпатия</span>
+                    <button class="attr-roll-btn no-print" title="Бросить кость Эмпатии">🎲</button>
+                  </div>
+                </td>
+                <td class="attr-die-cell">
+                  <select class="die-select" id="die_empathy">
+                    <option value="d4">d4</option>
+                    <option value="d6">d6</option>
+                    <option value="d8" selected>d8</option>
+                    <option value="d10">d10</option>
+                    <option value="d12">d12</option>
+                    <option value="d20">d20</option>
+                  </select>
+                </td>
+                <td class="hp-track-cell">
+                  <div class="hp-track-wrap" id="hpTrack_empathy"></div>
+                </td>
+              </tr>
+
+              <!-- Дух -->
+              <tr data-attr="spirit">
+                <td class="attr-name-cell">
+                  <div class="attr-name-wrap">
+                    <span>Дух</span>
+                    <button class="attr-roll-btn no-print" title="Бросить кость Духа">🎲</button>
+                  </div>
+                </td>
+                <td class="attr-die-cell">
+                  <select class="die-select" id="die_spirit">
+                    <option value="d4">d4</option>
+                    <option value="d6">d6</option>
+                    <option value="d8">d8</option>
+                    <option value="d10" selected>d10</option>
+                    <option value="d12">d12</option>
+                    <option value="d20">d20</option>
+                  </select>
+                </td>
+                <td class="hp-track-cell">
+                  <div class="hp-track-wrap" id="hpTrack_spirit"></div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Шрамы -->
+        <div class="sheet-box">
+          <div class="sheet-box-header">
+            <span>Шрамы</span>
+          </div>
+          <textarea id="charScars" class="textarea-clean" style="height:100%; min-height:120px;" placeholder="Полученные травмы, шрамы, увечья и последствия..."></textarea>
+        </div>
+
+        <!-- Навыки -->
+        <div class="sheet-box">
+          <div class="sheet-box-header">
+            <span>Навыки</span>
+            <button id="btnQuickSkills" class="btn btn-icon no-print" style="padding:1px 5px; font-size:10px;" title="Выбрать навыки из списка или бросить 2d20">⚡ Выбрать</button>
+          </div>
+          <textarea id="charSkills" class="textarea-clean" style="height:100%; min-height:120px;" placeholder="1. Ближний бой&#10;2. Выживание&#10;(нажмите «Выбрать» для списка навыков)"></textarea>
+        </div>
+
+      </section>
+
+      <!-- РЯД 3: Перки | Снаряжение -->
+      <section class="row-middle">
+
+        <!-- Перки -->
+        <div class="sheet-box">
+          <div class="sheet-box-header">
+            <span>Перки</span>
+            <button id="btnQuickPerks" class="btn btn-icon no-print" style="padding:1px 5px; font-size:10px;" title="Добавить перк из книги правил">➕ Добавить</button>
+          </div>
+          <div class="perks-table-wrap">
+            <table class="perks-table" id="perksTable">
+              <thead>
+                <tr>
+                  <th>Перк</th>
+                  <th style="width:75px; text-align:center;">Цена в КМ</th>
+                  <th class="no-print" style="width:24px;"></th>
+                </tr>
+              </thead>
+              <tbody id="perksTbody">
+                <!-- Ряды перков генерируются динамически -->
+              </tbody>
+            </table>
+          </div>
+          <div class="perks-footer-tools no-print">
+            <button id="btnAddPerkRow" class="btn" style="font-size:11px; padding:3px 8px;">+ Строка</button>
+            <span style="font-size:11px; color:var(--text-muted);">Потрачено КМ: <strong id="totalKmSpent" style="color:var(--accent-gold);">0</strong></span>
+          </div>
+        </div>
+
+        <!-- Снаряжение (Интерактивная сетка инвентаря + режим списка) -->
+        <div class="sheet-box">
+          <div class="sheet-box-header">
+            <span>Снаряжение</span>
+          </div>
+          <div class="inventory-container">
+            <div class="inventory-toolbar no-print" style="display:flex; flex-direction:column; gap:6px;">
+              <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                <input type="text" id="invItemLabelInput" class="input-underline" placeholder="Название (напр.: Лук)" style="width:140px; font-size:11px; padding:2px 6px; background:var(--bg-input);">
+                <button id="btnAssignInvLabel" class="btn btn-primary" style="font-size:11px; padding:2px 8px;" title="Подписать выделенные клетки введенным названием">🏷️ Подписать</button>
+                <button id="btnQuickAddItem" class="btn" style="font-size:11px; padding:2px 6px;" title="Добавить предмет заданного размера (Ш×В)">➕ Предмет (Ш×В)</button>
+                <button id="btnDeleteInvItem" class="btn btn-danger" style="font-size:11px; padding:2px 8px; background:var(--accent-crimson); color:#fff; border-color:var(--accent-crimson);" title="Удалить выбранный предмет с сетки (или снять занятость выделенных клеток)">🗑️ Удалить предмет</button>
+                <button id="btnClearInvSelection" class="btn" style="font-size:11px; padding:2px 6px;" title="Снять текущее выделение">✕ Снять</button>
+                <button id="btnToggleInvView" class="btn" style="font-size:11px; padding:2px 6px;">📋 Сетка/Список</button>
+                <button id="btnClearInvGrid" class="btn" style="font-size:11px; padding:2px 6px;" title="Полностью очистить всю сетку инвентаря">🧹 Очистить всё</button>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+                <span id="invSelectionInfo" style="font-size:11px; color:var(--accent-gold);">Выделите ячейки мышью (например, 2×8) и нажмите «Подписать»</span>
+                <span style="font-size:10px; color:var(--text-muted);">Клик по предмету на сетке выделяет его для удаления или правки (ПКМ — быстрое удаление)</span>
+              </div>
+            </div>
+
+            <!-- Клетчатая сетка как на бланке -->
+            <div class="inventory-grid-wrap" id="invGridContainer">
+              <div class="sheet-grid" id="inventoryGrid">
+                <!-- 250 ячеек (25 колонок на 10 рядов) генерируются через JS -->
+              </div>
+            </div>
+
+            <!-- Альтернативный текстовый список снаряжения -->
+            <div class="inventory-list-view" id="invListContainer" style="display:none;">
+              <textarea id="inventoryText" class="textarea-clean" style="min-height:160px;" placeholder="Перечислите снаряжение, припасы, факелы, зелья, трофеи..."></textarea>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- РЯД 4: Защита | Оружие | Магия -->
+      <section class="row-combat">
+
+        <!-- Защита (3 слота брони + щит с правилами) -->
+        <div class="sheet-box">
+          <div class="sheet-box-header">
+            <span>Защита</span>
+            <button id="btnQuickArmor" class="btn btn-icon no-print" style="padding:1px 5px; font-size:10px;" title="Выбрать броню и щит из каталога">🛡️ Пресеты</button>
+          </div>
+          
+          <div id="armorCardsContainer">
+            <!-- 3 слота брони -->
+            <div class="defense-card" data-armor-idx="0">
+              <div class="defense-row-top">
+                <span class="info-label" style="min-width:auto; font-size:11px; flex-shrink:0;">Броня</span>
+                <input type="text" class="input-underline armor-name" placeholder="Гамбизон, кольчуга..." style="flex:1; min-width:40px;">
+                <div class="defense-die-wrap" style="display:flex; align-items:center; gap:3px; flex-shrink:0;">
+                  <span class="info-label" style="min-width:auto; font-size:11px;">Кость</span>
+                  <select class="die-select armor-die" style="width:48px;">
+                    <option value="—">—</option>
+                    <option value="d4">d4</option>
+                    <option value="d6">d6</option>
+                    <option value="d8">d8</option>
+                  </select>
+                  <button class="attr-roll-btn no-print armor-roll-btn" title="Бросок защиты брони">🎲</button>
+                </div>
+              </div>
+              <div class="defense-types-row">
+                <label class="custom-checkbox-label"><input type="radio" name="armor_type_0" value="light"> Легкая</label>
+                <label class="custom-checkbox-label"><input type="radio" name="armor_type_0" value="medium"> Средняя</label>
+                <label class="custom-checkbox-label"><input type="radio" name="armor_type_0" value="heavy"> Тяжелая</label>
+              </div>
+              <div class="durability-row" style="display:flex; align-items:center; gap:6px;">
+                <span class="durability-label" style="font-size:11px; flex-shrink:0;">Прочность</span>
+                <div class="durability-boxes armor-dur-boxes">
+                  <!-- 10 чекбоксов прочности (2 ряда по 5) -->
+                </div>
+              </div>
+              <input type="text" class="input-underline armor-rules" placeholder="Спецправила (Поддоспешная, Крепкая 2...)">
+            </div>
+
+            <!-- Слот брони 2 -->
+            <div class="defense-card" data-armor-idx="1">
+              <div class="defense-row-top">
+                <span class="info-label" style="min-width:auto; font-size:11px; flex-shrink:0;">Броня</span>
+                <input type="text" class="input-underline armor-name" style="flex:1; min-width:40px;">
+                <div class="defense-die-wrap" style="display:flex; align-items:center; gap:3px; flex-shrink:0;">
+                  <span class="info-label" style="min-width:auto; font-size:11px;">Кость</span>
+                  <select class="die-select armor-die" style="width:48px;">
+                    <option value="—">—</option>
+                    <option value="d4">d4</option>
+                    <option value="d6">d6</option>
+                    <option value="d8">d8</option>
+                  </select>
+                  <button class="attr-roll-btn no-print armor-roll-btn" title="Бросок защиты брони">🎲</button>
+                </div>
+              </div>
+              <div class="defense-types-row">
+                <label class="custom-checkbox-label"><input type="radio" name="armor_type_1" value="light"> Легкая</label>
+                <label class="custom-checkbox-label"><input type="radio" name="armor_type_1" value="medium"> Средняя</label>
+                <label class="custom-checkbox-label"><input type="radio" name="armor_type_1" value="heavy"> Тяжелая</label>
+              </div>
+              <div class="durability-row" style="display:flex; align-items:center; gap:6px;">
+                <span class="durability-label" style="font-size:11px; flex-shrink:0;">Прочность</span>
+                <div class="durability-boxes armor-dur-boxes"></div>
+              </div>
+              <input type="text" class="input-underline armor-rules" placeholder="Спецправила">
+            </div>
+
+            <!-- Слот брони 3 -->
+            <div class="defense-card" data-armor-idx="2">
+              <div class="defense-row-top">
+                <span class="info-label" style="min-width:auto; font-size:11px; flex-shrink:0;">Броня</span>
+                <input type="text" class="input-underline armor-name" style="flex:1; min-width:40px;">
+                <div class="defense-die-wrap" style="display:flex; align-items:center; gap:3px; flex-shrink:0;">
+                  <span class="info-label" style="min-width:auto; font-size:11px;">Кость</span>
+                  <select class="die-select armor-die" style="width:48px;">
+                    <option value="—">—</option>
+                    <option value="d4">d4</option>
+                    <option value="d6">d6</option>
+                    <option value="d8">d8</option>
+                  </select>
+                  <button class="attr-roll-btn no-print armor-roll-btn" title="Бросок защиты брони">🎲</button>
+                </div>
+              </div>
+              <div class="defense-types-row">
+                <label class="custom-checkbox-label"><input type="radio" name="armor_type_2" value="light"> Легкая</label>
+                <label class="custom-checkbox-label"><input type="radio" name="armor_type_2" value="medium"> Средняя</label>
+                <label class="custom-checkbox-label"><input type="radio" name="armor_type_2" value="heavy"> Тяжелая</label>
+              </div>
+              <div class="durability-row" style="display:flex; align-items:center; gap:6px;">
+                <span class="durability-label" style="font-size:11px; flex-shrink:0;">Прочность</span>
+                <div class="durability-boxes armor-dur-boxes"></div>
+              </div>
+              <input type="text" class="input-underline armor-rules" placeholder="Спецправила">
+            </div>
+          </div>
+
+          <!-- Блок щита с правилами из оригинального листа -->
+          <div class="shield-block">
+            <div class="shield-left">
+              <div style="display:flex; align-items:center; gap:4px;">
+                <span class="info-label" style="min-width:auto; font-size:11px; flex-shrink:0;">Щит</span>
+                <input type="text" id="shieldName" class="input-underline" placeholder="Классический" style="flex:1; min-width:40px;">
+              </div>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <span class="info-label" style="min-width:auto; font-size:11px; flex-shrink:0;">Кость</span>
+                <select id="shieldDie" class="die-select" style="width:48px;">
+                  <option value="—">—</option>
+                  <option value="d4">d4</option>
+                  <option value="d6">d6</option>
+                  <option value="d8">d8</option>
+                </select>
+                <button id="btnRollShield" class="attr-roll-btn no-print" title="Бросок защиты щита">🎲</button>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px; margin-top:2px;">
+                <span class="durability-label" style="font-size:11px; flex-shrink:0;">Прочность</span>
+                <!-- 8 чекбоксов прочности щита (2 ряда по 4) -->
+                <div class="durability-boxes shield-dur-wrap" id="shieldDurBoxes"></div>
+              </div>
+            </div>
+
+            <div class="shield-rules-text">
+              <p><strong>1.</strong> При броске защиты бросаются кости, но берется лучший результат.</p>
+              <p><strong>2.</strong> Броня и щит теряют 1 ОП при каждом броске защиты.</p>
+              <button id="btnApplyDefenseDamage" class="btn no-print" style="font-size:10px; padding:2px 6px; margin-top:4px;" title="Отнять 1 ОП у щита (или брони)">⚡ -1 ОП щиту/броне</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Оружие (3 слота с костью урона, прочностью и спецправилами) -->
+        <div class="sheet-box">
+          <div class="sheet-box-header">
+            <span>Оружие</span>
+            <button id="btnQuickWeapons" class="btn btn-icon no-print" style="padding:1px 5px; font-size:10px;" title="Выбрать оружие из каталога">⚔️ Каталог</button>
+          </div>
+
+          <div id="weaponsContainer">
+            <!-- Оружие 1 -->
+            <div class="weapon-card" data-weapon-idx="0">
+              <div class="weapon-header-row">
+                <span class="info-label" style="min-width:auto; font-size:11px; flex-shrink:0;">Оружие</span>
+                <input type="text" class="input-underline weapon-name" placeholder="Меч-Бастард, Лук, Алебарда..." style="flex:1; min-width:40px;">
+              </div>
+              <div class="weapon-stats-row">
+                <div class="weapon-die-wrap">
+                  <span class="info-label" style="min-width:auto; font-size:11px;">Урон</span>
+                  <select class="die-select weapon-die" style="width:50px;">
+                    <option value="—">—</option>
+                    <option value="d4">d4</option>
+                    <option value="d6">d6</option>
+                    <option value="d8">d8</option>
+                    <option value="d10">d10</option>
+                    <option value="d12">d12</option>
+                  </select>
+                  <button class="btn btn-icon no-print weapon-roll-btn" style="padding:2px 6px; font-size:11px;" title="Бросить урон оружия">🎲 Урон</button>
+                </div>
+                <div class="durability-row" style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                  <span class="durability-label" style="font-size:11px; flex-shrink:0;">Прочность</span>
+                  <div class="durability-boxes weapon-dur-boxes">
+                    <!-- 10 квадратов (2 ряда по 5) -->
+                  </div>
+                </div>
+              </div>
+              <textarea class="textarea-clean weapon-rules" style="min-height:38px; width:100%; box-sizing:border-box;" placeholder="Спецправила (Фехтовальное, Бронебойное, Дистанции...)"></textarea>
+            </div>
+
+            <!-- Оружие 2 -->
+            <div class="weapon-card" data-weapon-idx="1">
+              <div class="weapon-header-row">
+                <span class="info-label" style="min-width:auto; font-size:11px; flex-shrink:0;">Оружие</span>
+                <input type="text" class="input-underline weapon-name" style="flex:1; min-width:40px;">
+              </div>
+              <div class="weapon-stats-row">
+                <div class="weapon-die-wrap">
+                  <span class="info-label" style="min-width:auto; font-size:11px;">Урон</span>
+                  <select class="die-select weapon-die" style="width:50px;">
+                    <option value="—">—</option>
+                    <option value="d4">d4</option>
+                    <option value="d6">d6</option>
+                    <option value="d8">d8</option>
+                    <option value="d10">d10</option>
+                    <option value="d12">d12</option>
+                  </select>
+                  <button class="btn btn-icon no-print weapon-roll-btn" style="padding:2px 6px; font-size:11px;" title="Бросить урон оружия">🎲 Урон</button>
+                </div>
+                <div class="durability-row" style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                  <span class="durability-label" style="font-size:11px; flex-shrink:0;">Прочность</span>
+                  <div class="durability-boxes weapon-dur-boxes"></div>
+                </div>
+              </div>
+              <textarea class="textarea-clean weapon-rules" style="min-height:38px; width:100%; box-sizing:border-box;" placeholder="Спецправила"></textarea>
+            </div>
+
+            <!-- Оружие 3 -->
+            <div class="weapon-card" data-weapon-idx="2">
+              <div class="weapon-header-row">
+                <span class="info-label" style="min-width:auto; font-size:11px; flex-shrink:0;">Оружие</span>
+                <input type="text" class="input-underline weapon-name" style="flex:1; min-width:40px;">
+              </div>
+              <div class="weapon-stats-row">
+                <div class="weapon-die-wrap">
+                  <span class="info-label" style="min-width:auto; font-size:11px;">Урон</span>
+                  <select class="die-select weapon-die" style="width:50px;">
+                    <option value="—">—</option>
+                    <option value="d4">d4</option>
+                    <option value="d6">d6</option>
+                    <option value="d8">d8</option>
+                    <option value="d10">d10</option>
+                    <option value="d12">d12</option>
+                  </select>
+                  <button class="btn btn-icon no-print weapon-roll-btn" style="padding:2px 6px; font-size:11px;" title="Бросить урон оружия">🎲 Урон</button>
+                </div>
+                <div class="durability-row" style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                  <span class="durability-label" style="font-size:11px; flex-shrink:0;">Прочность</span>
+                  <div class="durability-boxes weapon-dur-boxes"></div>
+                </div>
+              </div>
+              <textarea class="textarea-clean weapon-rules" style="min-height:38px; width:100%; box-sizing:border-box;" placeholder="Спецправила"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Магия (Дисциплина, атрибут, аффект, концентрация, эффекты) -->
+        <div class="sheet-box">
+          <div class="sheet-box-header">
+            <span>Магия</span>
+            <button id="btnQuickMagic" class="btn btn-icon no-print" style="padding:1px 5px; font-size:10px;" title="Открыть справочник заклинаний и сложностей">✨ Дисциплины</button>
+          </div>
+
+          <table class="magic-disciplines-table">
+            <thead>
+              <tr>
+                <th>Магическая дисциплина</th>
+                <th style="width:100px;">Атрибут</th>
+              </tr>
+            </thead>
+            <tbody id="magicDisciplinesTbody">
+              <tr>
+                <td><input type="text" class="input-underline magic-disc-name" placeholder="Пиромантия"></td>
+                <td>
+                  <select class="die-select magic-disc-attr">
+                    <option value="Дух">Дух</option>
+                    <option value="Телосложение">Телосложение</option>
+                    <option value="Интеллект">Интеллект</option>
+                    <option value="Эмпатия">Эмпатия</option>
+                  </select>
+                </td>
+              </tr>
+              <tr>
+                <td><input type="text" class="input-underline magic-disc-name" placeholder="Управление водой"></td>
+                <td>
+                  <select class="die-select magic-disc-attr">
+                    <option value="Эмпатия">Эмпатия</option>
+                    <option value="Телосложение">Телосложение</option>
+                    <option value="Интеллект">Интеллект</option>
+                    <option value="Дух">Дух</option>
+                  </select>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- Трекер Аффекта и Концентрации -->
+          <div class="magic-affect-tracker">
+            <div class="magic-affect-row">
+              <span class="info-label" style="min-width:auto; font-size:11px;">Аффект:</span>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <input type="number" id="magicAffectCount" class="hp-num-input" value="0" min="0" max="10" style="width:34px; padding:2px;">
+                <button id="btnResetAffectKm" class="btn no-print" style="font-size:10px; padding:2px 5px; white-space:nowrap;" title="Потратить 1 КМ и снять 1 пункт аффекта">-1 (1 КМ)</button>
+              </div>
+            </div>
+            <div class="magic-affect-row">
+              <label class="custom-checkbox-label" style="font-size:11px;" title="Концентрация на заклинании активна">
+                <input type="checkbox" id="magicConcentrationCheck">
+                <span>Концентрация</span>
+              </label>
+              <button id="btnMagicCastRoll" class="btn no-print" style="font-size:10px; padding:2px 6px; white-space:nowrap;" title="Рассчитать сотворение магии">🔮 Сотворить</button>
+            </div>
+          </div>
+
+          <div class="magic-notes-area">
+            <textarea id="magicNotes" class="textarea-clean" style="height:100%; min-height:120px;" placeholder="Изученные эффекты, сила магии, катализаторы, дистанции..."></textarea>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- РЯД 5: Заметки (Во всю ширину) -->
+      <section class="box-notes">
+        <div class="box-title-simple">Заметки</div>
+        <textarea id="charNotes" class="notes-textarea" placeholder="Заметки кампании, задания, контакты, история, найденные секреты..."></textarea>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ==========================================================================
+       Модальное окно: Интерактивный кубик (Dice Roller)
+       ========================================================================== -->
+  <div class="modal-backdrop" id="diceModal">
+    <div class="modal-window" style="max-width:550px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🎲 Бросок костей</h3>
+        <button class="modal-close-btn" data-close-modal="diceModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="dice-buttons-grid">
+          <button class="btn-die" data-die="4">d4</button>
+          <button class="btn-die" data-die="6">d6</button>
+          <button class="btn-die" data-die="8">d8</button>
+          <button class="btn-die" data-die="10">d10</button>
+          <button class="btn-die" data-die="12">d12</button>
+          <button class="btn-die" data-die="20">d20</button>
+        </div>
+
+        <div class="roll-modifiers-bar">
+          <label class="custom-checkbox-label">
+            <input type="radio" name="roll_type" value="normal" checked> Обычный
+          </label>
+          <label class="custom-checkbox-label">
+            <input type="radio" name="roll_type" value="adv"> Преимущество (2 кости, макс.)
+          </label>
+          <label class="custom-checkbox-label">
+            <input type="radio" name="roll_type" value="dis"> Помеха (2 кости, мин.)
+          </label>
+        </div>
+
+        <div class="roll-result-display" id="rollResultBox">
+          <div class="roll-result-number" id="rollMainResult">—</div>
+          <div class="roll-result-details" id="rollDetails">Выберите кость для броска</div>
+        </div>
+
+        <div>
+          <label class="info-label" style="font-size:12px; margin-bottom:4px; display:block;">История бросков:</label>
+          <div class="roll-history-list" id="rollHistory">
+            <div style="color:var(--text-muted);">Пока нет бросков</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       Модальное окно: Справочник правил игры (Compendium)
+       ========================================================================== -->
+  <div class="modal-backdrop" id="compendiumModal">
+    <div class="modal-window" style="max-width:850px;">
+      <div class="modal-header">
+        <h3 class="modal-title">📖 Книга правил «Темная Башня»</h3>
+        <button class="modal-close-btn" data-close-modal="compendiumModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="compendium-tabs" id="compTabs">
+          <button class="btn btn-primary comp-tab-btn" data-tab="tabRules">📜 Основные правила</button>
+          <button class="btn comp-tab-btn" data-tab="tabRaces">🧝 Расы</button>
+          <button class="btn comp-tab-btn" data-tab="tabSkills">⚡ Навыки</button>
+          <button class="btn comp-tab-btn" data-tab="tabPerks">⭐ Перки</button>
+          <button class="btn comp-tab-btn" data-tab="tabEquip">⚔️ Оружие и броня</button>
+          <button class="btn comp-tab-btn" data-tab="tabMagic">🔮 Магия</button>
+        </div>
+        <div id="compTabContent" style="display:flex; flex-direction:column; gap:12px;">
+          <!-- Контент вкладок рендерится через JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       Модальное окно: Пошаговый мастер создания персонажа (Wizard)
+       ========================================================================== -->
+  <div class="modal-backdrop" id="wizardModal">
+    <div class="modal-window" style="max-width:750px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🧙 Мастер создания персонажа</h3>
+        <button class="modal-close-btn" data-close-modal="wizardModal">✕</button>
+      </div>
+      <div class="modal-body" id="wizardBody">
+        <!-- Шаги мастера создания заполняются в app.js -->
+      </div>
+      <div class="modal-footer">
+        <button id="btnWizardPrev" class="btn" style="display:none;">⬅ Назад</button>
+        <button id="btnWizardNext" class="btn btn-primary">Далее ➡</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       Модальное окно: Магазин и каталог снаряжения (Shop)
+       ========================================================================== -->
+  <div class="modal-backdrop" id="shopModal">
+    <div class="modal-window" style="max-width:800px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🛒 Магазин снаряжения (Стартовый бюджет 100 ⌘)</h3>
+        <button class="modal-close-btn" data-close-modal="shopModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex; justify-content:space-between; align-items:center; background:var(--bg-card); padding:8px 12px; border-radius:var(--radius); border:1px solid var(--border-color);">
+          <span>Текущие динары персонажа: <strong id="shopDinarsDisplay" style="color:var(--accent-gold); font-size:16px;">100 ⌘</strong></span>
+          <label class="custom-checkbox-label">
+            <input type="checkbox" id="autoDeductDinars" checked> Списывать динары при покупке
+          </label>
+        </div>
+        <div id="shopCatalogContainer" style="display:flex; flex-direction:column; gap:12px;">
+          <!-- Товары магазина рендерятся через JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       Модальное окно: Выбор навыков (Skills Selector)
+       ========================================================================== -->
+  <div class="modal-backdrop" id="skillsModal">
+    <div class="modal-window" style="max-width:700px;">
+      <div class="modal-header">
+        <h3 class="modal-title">⚡ Выбор навыков</h3>
+        <button class="modal-close-btn" data-close-modal="skillsModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <span style="font-size:12px; color:var(--text-muted);">По правилам персонаж начинает с 2 навыками (люди: +1, дворфы: выбор из 2).</span>
+          <button id="btnRoll2d20Skills" class="btn btn-primary" style="font-size:12px; padding:4px 10px;">🎲 Бросить 2d20 по правилам</button>
+        </div>
+        <div id="skillsCheckboxList" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:8px; max-height:400px; overflow-y:auto; padding:4px;">
+          <!-- Чекбоксы навыков рендерятся через JS -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btnApplySelectedSkills" class="btn btn-primary">Применить к бланку</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       Модальное окно: Пресеты снаряжения (Quick Presets)
+       ========================================================================== -->
+  <div class="modal-backdrop" id="quickPresetsModal">
+    <div class="modal-window" style="max-width:750px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="quickPresetsTitle">🛡️ Выбор снаряжения</h3>
+        <button class="modal-close-btn" data-close-modal="quickPresetsModal">✕</button>
+      </div>
+      <div class="modal-body" id="quickPresetsBody">
+        <!-- Контент пресетов рендерится через JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       Модальное окно: Расчет сотворения магии (Magic Casting)
+       ========================================================================== -->
+  <div class="modal-backdrop" id="magicCastingModal">
+    <div class="modal-window" style="max-width:650px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🔮 Расчет сотворения магии</h3>
+        <button class="modal-close-btn" data-close-modal="magicCastingModal">✕</button>
+      </div>
+      <div class="modal-body" id="magicCastingBody">
+        <!-- Калькулятор сотворения магии рендерится через JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Всплывающие уведомления (Toasts) -->
+  <div id="toastContainer" class="toast-container no-print"></div>
+
+  <!-- Скрипты приложения -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
