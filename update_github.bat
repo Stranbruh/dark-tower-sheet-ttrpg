@@ -24,7 +24,7 @@ if errorlevel 1 (
   echo   Possible reasons:
   echo   1. The repository does not exist on GitHub yet.
   echo      Create it at: https://github.com/new
-  echo      Name: dark-tower-sheet (Public)
+  echo      Name: dark-tower-sheet-ttrpg (Public)
   echo   2. Authentication failed in your browser / credentials.
   echo ========================================================
   echo.
