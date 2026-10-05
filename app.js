@@ -2192,7 +2192,11 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
     }
 
-    body.innerHTML = progressHtml + '<div style="margin-top:16px;">' + contentHtml + '</div>';
+    const progWrap = document.getElementById('wizardProgressWrap');
+    if (progWrap) {
+      progWrap.innerHTML = progressHtml;
+    }
+    body.innerHTML = contentHtml;
 
     // Hook inputs & validate Next button state
     if (wizStep === 0) {

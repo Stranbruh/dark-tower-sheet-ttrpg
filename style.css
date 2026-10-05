@@ -1676,18 +1676,22 @@ body {
 }
 
 /* Wizard Steps & Cards */
+.wizard-progress-bar {
+  padding: 14px 18px 0 18px;
+  background: var(--bg-surface);
+  flex-shrink: 0;
+}
+
 .wizard-progress {
   display: flex;
   gap: 8px;
-  margin-bottom: 16px;
-  overflow-x: auto;
-  padding-bottom: 4px;
+  width: 100%;
 }
 
 .wizard-step-pill {
   flex: 1;
   text-align: center;
-  padding: 6px 8px;
+  padding: 7px 8px;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius);
@@ -1695,13 +1699,25 @@ body {
   font-family: var(--font-heading);
   color: var(--text-muted);
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  box-sizing: border-box;
 }
 
 .wizard-step-pill.is-active {
   border-color: var(--accent-gold);
   color: var(--accent-gold);
-  background: rgba(212, 163, 75, 0.12);
+  background: rgba(212, 163, 75, 0.15);
   font-weight: 700;
+}
+
+.paper-style .wizard-step-pill.is-active,
+body[data-theme="paper"] .wizard-step-pill.is-active {
+  color: #000;
+  border-color: #000;
+  background: #eee;
 }
 
 .wizard-step-pill.is-done {
