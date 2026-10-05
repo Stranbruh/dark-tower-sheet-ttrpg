@@ -15,22 +15,9 @@ if not defined msg set "msg=Update character sheet"
 git commit -m "%msg%"
 echo.
 echo Pushing to GitHub...
-git push -u origin main
+git push origin main
 
-if errorlevel 1 (
-  echo.
-  echo ========================================================
-  echo   [ERROR] Git push failed!
-  echo   Possible reasons:
-  echo   1. The repository does not exist on GitHub yet.
-  echo      Create it at: https://github.com/new
-  echo      Name: dark-tower-sheet-ttrpg (Public)
-  echo   2. Authentication failed in your browser / credentials.
-  echo ========================================================
-  echo.
-  pause
-  exit /b 1
-)
+if errorlevel 1 goto :on_error
 
 echo.
 echo ========================================================
@@ -40,3 +27,16 @@ echo   Press Ctrl + F5 in your browser to see changes.
 echo ========================================================
 echo.
 pause
+exit /b 0
+
+:on_error
+echo.
+echo ========================================================
+echo   [ERROR] Git push failed!
+echo   Possible reasons:
+echo   1. The repository does not exist on GitHub.
+echo   2. Authentication failed in your browser or credentials.
+echo ========================================================
+echo.
+pause
+exit /b 1
