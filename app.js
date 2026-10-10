@@ -13,6 +13,8 @@ document.addEventListener('DOMContentLoaded', () => {
     id: 'char_' + Date.now(),
     name: '',
     race: '',
+    raceTrait: '',
+    rulesVersion: '7.0',
     concept: '',
     km: { current: 0, max: 0 },
     dinars: 100,
@@ -28,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     skills: '',
     perks: [],
     inventory: {
-      mode: 'grid',
+      mode: 'list',
       text: '',
       grid: [],
       items: []
@@ -57,6 +59,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function normalizeCharacter(char) {
     if (!char) return;
+    // Old sheets keep their choices and resources; no retroactive racial grants.
+    if (char.raceTrait === undefined) char.raceTrait = '';
+    if (!char.inventory || typeof char.inventory !== 'object') {
+      char.inventory = { mode: 'list', text: '', grid: [], items: [] };
+    }
+    if (typeof char.inventory.text !== 'string') char.inventory.text = '';
+    if (char.inventory.mode !== 'list') {
+      // Archive cell positions, and transfer names only once when switching an old sheet.
+      const lines = char.inventory.text.split('\n');
+      const available = new Map();
+      lines.forEach(line => {
+        const name = line.trim().replace(/^(?:[-*•]|\d+[.)])\s*/, '');
+        available.set(name, (available.get(name) || 0) + 1);
+      });
+      (char.inventory.items || []).forEach(item => {
+        const name = String(item.name || '').trim();
+        if (!name) return;
+        if (available.get(name)) available.set(name, available.get(name) - 1);
+        else lines.push(name);
+      });
+      char.inventory.text = lines.filter(line => line.trim()).join('\n');
+      char.inventory.mode = 'list';
+    }
     // KM: split into current and max
     if (typeof char.km === 'number') {
       char.km = { current: char.km, max: char.km };
@@ -268,6 +293,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
   bindInput('charName', 'name');
   bindInput('charRace', 'race');
+  document.getElementById('raceOptions').innerHTML = GAME_DATA.races.map(r => `<option value="${r.name}"></option>`).join('');
+  document.getElementById('charRace').addEventListener('input', () => {
+    const char = getActiveChar();
+    if (!GAME_DATA.races.find(r => r.name === char.race)?.traits.some(t => t.id === char.raceTrait)) char.raceTrait = '';
+    renderRaceTrait(char);
+    renderScars(char);
+    saveState();
+  });
+  document.getElementById('charRaceTrait').addEventListener('change', e => {
+    const char = getActiveChar();
+    char.raceTrait = e.target.value;
+    saveState();
+    renderRaceTrait(char);
+    renderScars(char);
+  });
+
+  function getRaceTrait(char) {
+    return GAME_DATA.races.find(r => r.name === char.race)?.traits.find(t => t.id === char.raceTrait);
+  }
+
+  function renderRaceTrait(char) {
+    const select = document.getElementById('charRaceTrait');
+    const traits = GAME_DATA.races.find(r => r.name === char.race)?.traits || [];
+    select.innerHTML = '<option value="">Не выбрана</option>' + traits.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+    select.value = char.raceTrait || '';
+    select.title = getRaceTrait(char)?.effect || 'Выберите одну расовую черту. Навыки и перки выдаются в мастере создания.';
+  }
   bindInput('charConcept', 'concept');
   bindInput('charKmCurrent', 'km.current', parseInt);
   bindInput('charKmMax', 'km.max', parseInt);
@@ -292,6 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     document.getElementById('charName').value = char.name;
     document.getElementById('charRace').value = char.race;
+    renderRaceTrait(char);
     document.getElementById('charConcept').value = char.concept;
     document.getElementById('charKmCurrent').value = char.km.current || 0;
     document.getElementById('charKmMax').value = char.km.max || 0;
@@ -532,11 +585,12 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     char.scars.forEach((s, idx) => {
+      const healingCost = getRaceTrait(char)?.scarHealingCost || 2;
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td><input type="text" class="scar-name-input" value="${s.text || ''}" placeholder="Рубец, хромота, потеря глаза..."></td>
         <td class="no-print" style="text-align:right; white-space:nowrap;">
-          <button class="btn-heal-scar" title="Исцелить шрам ценой 2 постоянных КМ">🩹 -2 Пост. КМ</button>
+          <button class="btn-heal-scar" title="Исцелить шрам ценой ${healingCost} постоянных КМ">🩹 -${healingCost} Пост. КМ</button>
           <button class="btn btn-icon btn-delete-scar" style="color:var(--accent-crimson); margin-left:3px; padding:1px 4px; font-size:11px;" title="Удалить шрам без траты КМ">✕</button>
         </td>
       `;
@@ -561,22 +615,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const scar = char.scars[idx];
     if (!scar) return;
     const scarTitle = scar.text || 'увечье';
+    const healingCost = getRaceTrait(char)?.scarHealingCost || 2;
     const currentMaxKm = char.km && typeof char.km === 'object' ? (char.km.max || 0) : (char.km || 0);
-    if (currentMaxKm < 2) {
-      showToast(`Недостаточно постоянных КМ! Требуется 2 постоянных КМ (сейчас: ${currentMaxKm})`, 'danger');
+    if (currentMaxKm < healingCost) {
+      showToast(`Недостаточно постоянных КМ! Требуется ${healingCost} постоянных КМ (сейчас: ${currentMaxKm})`, 'danger');
       return;
     }
-    if (confirm(`Исцелить шрам «${scarTitle}» ценой 2 постоянных КМ?\nПостоянный максимум КМ уменьшится на 2.`)) {
+    if (confirm(`Исцелить шрам «${scarTitle}» ценой ${healingCost} постоянных КМ?\nПостоянный максимум КМ уменьшится на ${healingCost}.`)) {
       if (typeof char.km === 'object') {
-        char.km.max -= 2;
+        char.km.max -= healingCost;
         if (char.km.current > char.km.max) char.km.current = char.km.max;
       } else {
-        char.km -= 2;
+        char.km -= healingCost;
       }
       char.scars.splice(idx, 1);
       saveState();
       renderSheet();
-      showToast(`Шрам «${scarTitle}» исцелен ценой 2 постоянных КМ!`, 'success');
+      showToast(`Шрам «${scarTitle}» исцелен ценой ${healingCost} постоянных КМ!`, 'success');
     }
   }
 
@@ -685,9 +740,9 @@ document.addEventListener('DOMContentLoaded', () => {
     char.perks.forEach((p, idx) => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><input type="text" class="perk-name-input" value="${p.name}" placeholder="Название перка"></td>
+        <td><div class="perk-name-row"><input type="text" class="perk-name-input" value="${escapeHtml(p.name)}" placeholder="Название перка"><button type="button" class="btn btn-icon perk-info-btn no-print" title="Посмотреть описание перка" aria-label="Посмотреть описание перка">ⓘ</button></div></td>
         <td><input type="number" class="perk-cost-input" value="${p.cost}" min="0"></td>
-        <td class="no-print"><button class="btn btn-icon" style="color:var(--accent-crimson)" title="Удалить">✕</button></td>
+        <td class="no-print"><button class="btn btn-icon perk-delete-btn" style="color:var(--accent-crimson)" title="Удалить">✕</button></td>
       `;
       tr.querySelector('.perk-name-input').addEventListener('input', e => { p.name = e.target.value; saveState(); });
       tr.querySelector('.perk-cost-input').addEventListener('input', e => { 
@@ -695,7 +750,8 @@ document.addEventListener('DOMContentLoaded', () => {
         saveState(); 
         updatePerksTotal(); 
       });
-      tr.querySelector('button').addEventListener('click', () => {
+      tr.querySelector('.perk-info-btn').addEventListener('click', () => showPerkDescription(p));
+      tr.querySelector('.perk-delete-btn').addEventListener('click', () => {
         char.perks.splice(idx, 1);
         saveState();
         renderPerks(char);
@@ -705,6 +761,55 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     updatePerksTotal();
   }
+
+  function showPerkDescription(perk) {
+    const normalizeName = name => String(name || '').trim().toLocaleLowerCase('ru').replace(/ё/g, 'е').replace(/\s+/g, ' ');
+    const rule = GAME_DATA.perks.find(p => normalizeName(p.name) === normalizeName(perk.name));
+    document.getElementById('perkDescriptionTitle').textContent = perk.name || 'Перк без названия';
+    const body = document.getElementById('perkDescriptionBody');
+    body.replaceChildren();
+    const addText = (text, className = 'shop-item-rules') => {
+      const paragraph = document.createElement('p');
+      paragraph.className = className;
+      paragraph.textContent = text;
+      body.appendChild(paragraph);
+    };
+    if (rule) {
+      addText(`${rule.category} · Цена в справочнике: ${rule.costKM} КМ`);
+      addText(`Требования: ${rule.req}`);
+      if (perk.racialGrant) addText('Получен бесплатно как расовая особенность.');
+    }
+    const label = document.createElement('label');
+    label.htmlFor = 'perkDescriptionText';
+    label.textContent = 'Описание (можно редактировать)';
+    body.appendChild(label);
+    const editor = document.createElement('textarea');
+    editor.id = 'perkDescriptionText';
+    editor.className = 'textarea-clean perk-description-editor';
+    editor.placeholder = 'Добавьте эффект перка, условия использования и другие подробности…';
+    editor.value = perk.description ?? perk.desc ?? rule?.desc ?? '';
+    editor.addEventListener('input', () => {
+      perk.description = editor.value;
+      saveState();
+    });
+    body.appendChild(editor);
+    addText('Изменения сохраняются автоматически.');
+    if (rule) {
+      const reset = document.createElement('button');
+      reset.type = 'button';
+      reset.className = 'btn';
+      reset.id = 'btnResetPerkDescription';
+      reset.textContent = 'Вернуть описание из справочника';
+      reset.addEventListener('click', () => {
+        delete perk.description;
+        delete perk.desc;
+        editor.value = rule.desc;
+        saveState();
+      });
+      body.appendChild(reset);
+    }
+    openModal('perkDescriptionModal');
+  }
   
   function updatePerksTotal() {
     const total = getActiveChar().perks.reduce((sum, p) => sum + (parseInt(p.cost) || 0), 0);
@@ -713,6 +818,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- МАГИЯ (Динамические дисциплины) ---
   const magicDisciplinesTbody = document.getElementById('magicDisciplinesTbody');
+  document.getElementById('magicDisciplineOptions').innerHTML = GAME_DATA.magic.disciplines.map(d => `<option value="${d.name}"></option>`).join('');
   const btnAddMagicDiscipline = document.getElementById('btnAddMagicDiscipline');
 
   if (btnAddMagicDiscipline) {
@@ -735,7 +841,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td>
-              <input type="text" class="input-underline magic-disc-name" value="${d.name || ''}" placeholder="Пиромантия, Управление водой...">
+              <input type="text" class="input-underline magic-disc-name" value="${escapeHtml(d.name || '')}" list="magicDisciplineOptions" placeholder="Выберите дисциплину">
             </td>
             <td>
               <select class="die-select magic-disc-attr" style="width:100%;">
@@ -751,6 +857,11 @@ document.addEventListener('DOMContentLoaded', () => {
           `;
           tr.querySelector('.magic-disc-name').addEventListener('input', (e) => {
             d.name = e.target.value;
+            const preset = GAME_DATA.magic.disciplines.find(disc => disc.name === d.name);
+            if (preset) {
+              d.attr = preset.attr;
+              tr.querySelector('.magic-disc-attr').value = d.attr;
+            }
             saveState();
           });
           tr.querySelector('.magic-disc-attr').addEventListener('change', (e) => {
@@ -773,7 +884,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   document.getElementById('magicAffectCount').addEventListener('input', e => { 
-    getActiveChar().magic.affect = parseInt(e.target.value) || 0; 
+    getActiveChar().magic.affect = Math.max(0, parseInt(e.target.value) || 0);
     saveState(); 
   });
   document.getElementById('magicConcentrationCheck').addEventListener('change', e => { 
@@ -926,380 +1037,387 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==========================================
   // ИНВЕНТАРЬ (Inventory Grid & Item Labeling)
   // ==========================================
-  const invGridContainer = document.getElementById('inventoryGrid');
-  const invListContainer = document.getElementById('invListContainer');
-  const invGridWrap = document.getElementById('invGridContainer');
+  // Cell inventory is temporarily disabled; preserved for future restoration.
+//   const invGridContainer = document.getElementById('inventoryGrid');
+//   const invListContainer = document.getElementById('invListContainer');
+//   const invGridWrap = document.getElementById('invGridContainer');
+//   const inventoryText = document.getElementById('inventoryText');
+//   const invItemLabelInput = document.getElementById('invItemLabelInput');
+//   const btnAssignInvLabel = document.getElementById('btnAssignInvLabel');
+//   const btnQuickAddItem = document.getElementById('btnQuickAddItem');
+//   const btnDeleteInvItem = document.getElementById('btnDeleteInvItem');
+//   const btnClearInvSelection = document.getElementById('btnClearInvSelection');
+//   const invSelectionInfo = document.getElementById('invSelectionInfo');
+//
+//   let selectedCells = new Set();
+//   let isSelectingGrid = false;
+//   let dragAnchorIndex = null;
+//
+//   function initGrid() {
+//     invGridContainer.innerHTML = '';
+//     for (let i = 0; i < 250; i++) {
+//       const cell = document.createElement('div');
+//       cell.className = 'grid-cell';
+//       cell.dataset.index = i;
+//
+//       cell.addEventListener('mousedown', (e) => {
+//         if (e.button !== 0) return; // only left click
+//         isSelectingGrid = true;
+//         dragAnchorIndex = i;
+//
+//         const char = getActiveChar();
+//         const existingItem = (char.inventory.items || []).find(it => it.cells.includes(i));
+//         if (existingItem) {
+//           selectedCells = new Set(existingItem.cells);
+//           invItemLabelInput.value = existingItem.name;
+//           updateSelectionUI();
+//           isSelectingGrid = false;
+//           return;
+//         }
+//
+//         if (e.shiftKey) {
+//           if (selectedCells.has(i)) selectedCells.delete(i);
+//           else selectedCells.add(i);
+//         } else {
+//           selectedCells = new Set([i]);
+//         }
+//         updateSelectionUI();
+//       });
+//
+//       cell.addEventListener('contextmenu', (e) => {
+//         e.preventDefault();
+//         const char = getActiveChar();
+//         const existingItem = (char.inventory.items || []).find(it => it.cells.includes(i));
+//         if (existingItem) {
+//           if (confirm(`Удалить предмет «${existingItem.name}» (${existingItem.cells.length} ячеек) с сетки?`)) {
+//             deleteItemFromInventory(existingItem);
+//           }
+//         }
+//       });
+//
+//       cell.addEventListener('mouseenter', () => {
+//         if (isSelectingGrid && dragAnchorIndex !== null) {
+//           const startCol = dragAnchorIndex % 25;
+//           const startRow = Math.floor(dragAnchorIndex / 25);
+//           const currCol = i % 25;
+//           const currRow = Math.floor(i / 25);
+//
+//           const minCol = Math.min(startCol, currCol);
+//           const maxCol = Math.max(startCol, currCol);
+//           const minRow = Math.min(startRow, currRow);
+//           const maxRow = Math.max(startRow, currRow);
+//
+//           selectedCells = new Set();
+//           for (let r = minRow; r <= maxRow; r++) {
+//             for (let c = minCol; c <= maxCol; c++) {
+//               selectedCells.add(r * 25 + c);
+//             }
+//           }
+//           updateSelectionUI();
+//         }
+//       });
+//
+//       invGridContainer.appendChild(cell);
+//     }
+//
+//     document.addEventListener('mouseup', () => {
+//       isSelectingGrid = false;
+//       dragAnchorIndex = null;
+//     });
+//   }
+//
+//   function updateSelectionUI() {
+//     const cells = invGridContainer.children;
+//     for (let i = 0; i < 250; i++) {
+//       if (selectedCells.has(i)) {
+//         cells[i].classList.add('cell-selected');
+//       } else {
+//         cells[i].classList.remove('cell-selected');
+//       }
+//     }
+//
+//     if (selectedCells.size === 0) {
+//       invSelectionInfo.textContent = 'Выделите ячейки мышью (например, 2×8) и нажмите «Подписать»';
+//       invSelectionInfo.style.color = 'var(--text-muted)';
+//       if (btnDeleteInvItem) {
+//         btnDeleteInvItem.disabled = true;
+//         btnDeleteInvItem.style.opacity = '0.5';
+//       }
+//     } else {
+//       const cols = Array.from(selectedCells).map(idx => idx % 25);
+//       const rows = Array.from(selectedCells).map(idx => Math.floor(idx / 25));
+//       const w = Math.max(...cols) - Math.min(...cols) + 1;
+//       const h = Math.max(...rows) - Math.min(...rows) + 1;
+//       const char = getActiveChar();
+//       const matchedItem = (char.inventory.items || []).find(it => it.cells.some(c => selectedCells.has(c)));
+//       const itemNameStr = matchedItem ? ` — «${matchedItem.name}»` : '';
+//       invSelectionInfo.textContent = `Выделено: ${selectedCells.size} яч. (${w}×${h})${itemNameStr}`;
+//       invSelectionInfo.style.color = 'var(--accent-gold)';
+//       if (btnDeleteInvItem) {
+//         btnDeleteInvItem.disabled = false;
+//         btnDeleteInvItem.style.opacity = '1';
+//       }
+//     }
+//   }
+//
+//   function renderInventoryGrid(char) {
+//     if (!char.inventory.items) char.inventory.items = [];
+//     if (!char.inventory.grid) char.inventory.grid = [];
+//
+//     const cells = invGridContainer.children;
+//     for (let i = 0; i < 250; i++) {
+//       cells[i].className = 'grid-cell';
+//       cells[i].innerHTML = '';
+//       cells[i].removeAttribute('title');
+//       if (selectedCells.has(i)) cells[i].classList.add('cell-selected');
+//     }
+//
+//     // Render placed items
+//     char.inventory.items.forEach(item => {
+//       if (!item.cells || item.cells.length === 0) return;
+//       const sortedCells = [...item.cells].sort((a, b) => a - b);
+//       const cols = item.cells.map(c => c % 25);
+//       const rows = item.cells.map(c => Math.floor(c / 25));
+//
+//       const minCol = Math.min(...cols);
+//       const maxCol = Math.max(...cols);
+//       const minRow = Math.min(...rows);
+//       const maxRow = Math.max(...rows);
+//
+//       const itemWidth = maxCol - minCol + 1;
+//       const itemHeight = maxRow - minRow + 1;
+//       const topLeftIdx = minRow * 25 + minCol;
+//
+//       item.cells.forEach(cIdx => {
+//         if (cells[cIdx]) {
+//           cells[cIdx].classList.add('cell-occupied');
+//           cells[cIdx].title = `${item.name} (${item.cells.length} ячеек) — кликните для выделения`;
+//         }
+//       });
+//
+//       const targetCell = cells[topLeftIdx] || cells[sortedCells[0]];
+//       if (targetCell) {
+//         const label = document.createElement('span');
+//         label.className = 'grid-cell-label';
+//         label.textContent = item.name;
+//         label.style.setProperty('--item-cols', itemWidth);
+//         label.style.setProperty('--item-rows', itemHeight);
+//         targetCell.appendChild(label);
+//       }
+//     });
+//
+//     // Support legacy grid array
+//     char.inventory.grid.forEach(idx => {
+//       if (cells[idx]) cells[idx].classList.add('cell-occupied');
+//     });
+//   }
+//
+//   function renderInventoryState() {
+//     const char = getActiveChar();
+//     inventoryText.value = char.inventory.text || '';
+//
+//     if (char.inventory.mode === 'list') {
+//       invGridWrap.style.display = 'none';
+//       invListContainer.style.display = 'flex';
+//     } else {
+//       invGridWrap.style.display = 'block';
+//       invListContainer.style.display = 'none';
+//       renderInventoryGrid(char);
+//     }
+//     updateSelectionUI();
+//   }
+//
+//   btnAssignInvLabel.addEventListener('click', () => {
+//     if (selectedCells.size === 0) {
+//       showToast('Сначала выделите ячейки на сетке (например 2×8)!', 'warning');
+//       return;
+//     }
+//
+//     let name = invItemLabelInput.value.trim();
+//     if (!name) {
+//       name = prompt('Введите название предмета (например: Лук, Доспех, Меч):');
+//       if (!name) return;
+//       invItemLabelInput.value = name;
+//     }
+//
+//     const char = getActiveChar();
+//     if (!char.inventory.items) char.inventory.items = [];
+//
+//     const cellArr = Array.from(selectedCells);
+//
+//     // Remove overlapping items
+//     char.inventory.items = char.inventory.items.filter(it => !it.cells.some(c => cellArr.includes(c)));
+//
+//     char.inventory.items.push({
+//       id: 'item_' + Date.now(),
+//       name: name,
+//       cells: cellArr
+//     });
+//
+//     char.inventory.grid = Array.from(new Set([...(char.inventory.grid || []), ...cellArr]));
+//
+//     if (char.inventory.text && !char.inventory.text.includes(name)) {
+//       char.inventory.text += `\n${name}`;
+//     } else if (!char.inventory.text) {
+//       char.inventory.text = name;
+//     }
+//
+//     selectedCells.clear();
+//     invItemLabelInput.value = '';
+//     saveState();
+//     renderInventoryState();
+//     showToast(`Предмет «${name}» успешно размещен на сетке!`, 'success');
+//   });
+//
+//   btnQuickAddItem.addEventListener('click', () => {
+//     const name = prompt('Название предмета (например: Лук, Меч, Щит):', 'Лук');
+//     if (!name) return;
+//     const wStr = prompt('Ширина в ячейках (от 1 до 25):', '2');
+//     if (!wStr) return;
+//     const hStr = prompt('Высота в ячейках (от 1 до 10):', '8');
+//     if (!hStr) return;
+//
+//     const w = parseInt(wStr) || 1;
+//     const h = parseInt(hStr) || 1;
+//
+//     const char = getActiveChar();
+//     if (!char.inventory.items) char.inventory.items = [];
+//
+//     const occupied = new Set();
+//     char.inventory.items.forEach(it => it.cells.forEach(c => occupied.add(c)));
+//
+//     let foundAnchor = null;
+//     outerLoop:
+//     for (let r = 0; r <= 10 - h; r++) {
+//       for (let c = 0; c <= 25 - w; c++) {
+//         let fits = true;
+//         for (let dr = 0; dr < h; dr++) {
+//           for (let dc = 0; dc < w; dc++) {
+//             if (occupied.has((r + dr) * 25 + (c + dc))) {
+//               fits = false;
+//               break;
+//             }
+//           }
+//           if (!fits) break;
+//         }
+//         if (fits) {
+//           foundAnchor = { r, c };
+//           break outerLoop;
+//         }
+//       }
+//     }
+//
+//     if (!foundAnchor) {
+//       showToast(`Не найдено свободного места ${w}×${h} на сетке!`, 'danger');
+//       return;
+//     }
+//
+//     const itemCells = [];
+//     for (let dr = 0; dr < h; dr++) {
+//       for (let dc = 0; dc < w; dc++) {
+//         itemCells.push((foundAnchor.r + dr) * 25 + (foundAnchor.c + dc));
+//       }
+//     }
+//
+//     char.inventory.items.push({
+//       id: 'item_' + Date.now(),
+//       name: name,
+//       cells: itemCells
+//     });
+//
+//     char.inventory.grid = Array.from(new Set([...(char.inventory.grid || []), ...itemCells]));
+//
+//     if (char.inventory.text && !char.inventory.text.includes(name)) {
+//       char.inventory.text += `\n${name}`;
+//     } else if (!char.inventory.text) {
+//       char.inventory.text = name;
+//     }
+//
+//     saveState();
+//     renderInventoryState();
+//     showToast(`Предмет «${name}» (${w}×${h}) размещен!`, 'success');
+//   });
+//
+//   function deleteItemFromInventory(item) {
+//     const char = getActiveChar();
+//     if (!char.inventory.items) char.inventory.items = [];
+//     char.inventory.items = char.inventory.items.filter(it => it.id !== item.id);
+//     const itemCellSet = new Set(item.cells);
+//     char.inventory.grid = (char.inventory.grid || []).filter(c => !itemCellSet.has(c));
+//     selectedCells.clear();
+//     invItemLabelInput.value = '';
+//     saveState();
+//     renderInventoryState();
+//     showToast(`Предмет «${item.name}» удален с сетки`, 'info');
+//   }
+//
+//   function deleteSelectedInventoryItems() {
+//     if (selectedCells.size === 0) {
+//       showToast('Сначала выделите предмет или ячейки на сетке!', 'warning');
+//       return;
+//     }
+//     const char = getActiveChar();
+//     if (!char.inventory.items) char.inventory.items = [];
+//     const cellArr = Array.from(selectedCells);
+//     const itemsToDelete = char.inventory.items.filter(it => it.cells.some(c => cellArr.includes(c)));
+//
+//     if (itemsToDelete.length > 0) {
+//       const names = itemsToDelete.map(it => `«${it.name}»`).join(', ');
+//       char.inventory.items = char.inventory.items.filter(it => !itemsToDelete.includes(it));
+//       const deletedCellSet = new Set();
+//       itemsToDelete.forEach(it => it.cells.forEach(c => deletedCellSet.add(c)));
+//       cellArr.forEach(c => deletedCellSet.add(c));
+//       char.inventory.grid = (char.inventory.grid || []).filter(c => !deletedCellSet.has(c));
+//       selectedCells.clear();
+//       invItemLabelInput.value = '';
+//       saveState();
+//       renderInventoryState();
+//       showToast(`Предмет ${names} удален с сетки!`, 'info');
+//     } else {
+//       char.inventory.grid = (char.inventory.grid || []).filter(c => !cellArr.includes(c));
+//       selectedCells.clear();
+//       invItemLabelInput.value = '';
+//       saveState();
+//       renderInventoryState();
+//       showToast('Выделенные ячейки освобождены', 'info');
+//     }
+//   }
+//
+//   if (btnDeleteInvItem) {
+//     btnDeleteInvItem.addEventListener('click', deleteSelectedInventoryItems);
+//   }
+//
+//   btnClearInvSelection.addEventListener('click', () => {
+//     selectedCells.clear();
+//     invItemLabelInput.value = '';
+//     updateSelectionUI();
+//   });
+//
+//   document.getElementById('btnToggleInvView').addEventListener('click', () => {
+//     const char = getActiveChar();
+//     char.inventory.mode = char.inventory.mode === 'grid' ? 'list' : 'grid';
+//     saveState();
+//     renderInventoryState();
+//   });
+//
+//   document.getElementById('btnClearInvGrid').addEventListener('click', () => {
+//     if (confirm('Очистить всю сетку инвентаря? Все размещенные предметы будут удалены.')) {
+//       const char = getActiveChar();
+//       char.inventory.grid = [];
+//       char.inventory.items = [];
+//       selectedCells.clear();
+//       invItemLabelInput.value = '';
+//       saveState();
+//       renderInventoryState();
+//       showToast('Сетка инвентаря очищена', 'info');
+//     }
+//   });
+//
+
   const inventoryText = document.getElementById('inventoryText');
-  const invItemLabelInput = document.getElementById('invItemLabelInput');
-  const btnAssignInvLabel = document.getElementById('btnAssignInvLabel');
-  const btnQuickAddItem = document.getElementById('btnQuickAddItem');
-  const btnDeleteInvItem = document.getElementById('btnDeleteInvItem');
-  const btnClearInvSelection = document.getElementById('btnClearInvSelection');
-  const invSelectionInfo = document.getElementById('invSelectionInfo');
-
-  let selectedCells = new Set();
-  let isSelectingGrid = false;
-  let dragAnchorIndex = null;
-
-  function initGrid() {
-    invGridContainer.innerHTML = '';
-    for (let i = 0; i < 250; i++) {
-      const cell = document.createElement('div');
-      cell.className = 'grid-cell';
-      cell.dataset.index = i;
-
-      cell.addEventListener('mousedown', (e) => {
-        if (e.button !== 0) return; // only left click
-        isSelectingGrid = true;
-        dragAnchorIndex = i;
-
-        const char = getActiveChar();
-        const existingItem = (char.inventory.items || []).find(it => it.cells.includes(i));
-        if (existingItem) {
-          selectedCells = new Set(existingItem.cells);
-          invItemLabelInput.value = existingItem.name;
-          updateSelectionUI();
-          isSelectingGrid = false;
-          return;
-        }
-
-        if (e.shiftKey) {
-          if (selectedCells.has(i)) selectedCells.delete(i);
-          else selectedCells.add(i);
-        } else {
-          selectedCells = new Set([i]);
-        }
-        updateSelectionUI();
-      });
-
-      cell.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        const char = getActiveChar();
-        const existingItem = (char.inventory.items || []).find(it => it.cells.includes(i));
-        if (existingItem) {
-          if (confirm(`Удалить предмет «${existingItem.name}» (${existingItem.cells.length} ячеек) с сетки?`)) {
-            deleteItemFromInventory(existingItem);
-          }
-        }
-      });
-
-      cell.addEventListener('mouseenter', () => {
-        if (isSelectingGrid && dragAnchorIndex !== null) {
-          const startCol = dragAnchorIndex % 25;
-          const startRow = Math.floor(dragAnchorIndex / 25);
-          const currCol = i % 25;
-          const currRow = Math.floor(i / 25);
-
-          const minCol = Math.min(startCol, currCol);
-          const maxCol = Math.max(startCol, currCol);
-          const minRow = Math.min(startRow, currRow);
-          const maxRow = Math.max(startRow, currRow);
-
-          selectedCells = new Set();
-          for (let r = minRow; r <= maxRow; r++) {
-            for (let c = minCol; c <= maxCol; c++) {
-              selectedCells.add(r * 25 + c);
-            }
-          }
-          updateSelectionUI();
-        }
-      });
-
-      invGridContainer.appendChild(cell);
-    }
-
-    document.addEventListener('mouseup', () => {
-      isSelectingGrid = false;
-      dragAnchorIndex = null;
-    });
-  }
-
-  function updateSelectionUI() {
-    const cells = invGridContainer.children;
-    for (let i = 0; i < 250; i++) {
-      if (selectedCells.has(i)) {
-        cells[i].classList.add('cell-selected');
-      } else {
-        cells[i].classList.remove('cell-selected');
-      }
-    }
-
-    if (selectedCells.size === 0) {
-      invSelectionInfo.textContent = 'Выделите ячейки мышью (например, 2×8) и нажмите «Подписать»';
-      invSelectionInfo.style.color = 'var(--text-muted)';
-      if (btnDeleteInvItem) {
-        btnDeleteInvItem.disabled = true;
-        btnDeleteInvItem.style.opacity = '0.5';
-      }
-    } else {
-      const cols = Array.from(selectedCells).map(idx => idx % 25);
-      const rows = Array.from(selectedCells).map(idx => Math.floor(idx / 25));
-      const w = Math.max(...cols) - Math.min(...cols) + 1;
-      const h = Math.max(...rows) - Math.min(...rows) + 1;
-      const char = getActiveChar();
-      const matchedItem = (char.inventory.items || []).find(it => it.cells.some(c => selectedCells.has(c)));
-      const itemNameStr = matchedItem ? ` — «${matchedItem.name}»` : '';
-      invSelectionInfo.textContent = `Выделено: ${selectedCells.size} яч. (${w}×${h})${itemNameStr}`;
-      invSelectionInfo.style.color = 'var(--accent-gold)';
-      if (btnDeleteInvItem) {
-        btnDeleteInvItem.disabled = false;
-        btnDeleteInvItem.style.opacity = '1';
-      }
-    }
-  }
-
-  function renderInventoryGrid(char) {
-    if (!char.inventory.items) char.inventory.items = [];
-    if (!char.inventory.grid) char.inventory.grid = [];
-
-    const cells = invGridContainer.children;
-    for (let i = 0; i < 250; i++) {
-      cells[i].className = 'grid-cell';
-      cells[i].innerHTML = '';
-      cells[i].removeAttribute('title');
-      if (selectedCells.has(i)) cells[i].classList.add('cell-selected');
-    }
-
-    // Render placed items
-    char.inventory.items.forEach(item => {
-      if (!item.cells || item.cells.length === 0) return;
-      const sortedCells = [...item.cells].sort((a, b) => a - b);
-      const cols = item.cells.map(c => c % 25);
-      const rows = item.cells.map(c => Math.floor(c / 25));
-
-      const minCol = Math.min(...cols);
-      const maxCol = Math.max(...cols);
-      const minRow = Math.min(...rows);
-      const maxRow = Math.max(...rows);
-
-      const itemWidth = maxCol - minCol + 1;
-      const itemHeight = maxRow - minRow + 1;
-      const topLeftIdx = minRow * 25 + minCol;
-
-      item.cells.forEach(cIdx => {
-        if (cells[cIdx]) {
-          cells[cIdx].classList.add('cell-occupied');
-          cells[cIdx].title = `${item.name} (${item.cells.length} ячеек) — кликните для выделения`;
-        }
-      });
-
-      const targetCell = cells[topLeftIdx] || cells[sortedCells[0]];
-      if (targetCell) {
-        const label = document.createElement('span');
-        label.className = 'grid-cell-label';
-        label.textContent = item.name;
-        label.style.setProperty('--item-cols', itemWidth);
-        label.style.setProperty('--item-rows', itemHeight);
-        targetCell.appendChild(label);
-      }
-    });
-
-    // Support legacy grid array
-    char.inventory.grid.forEach(idx => {
-      if (cells[idx]) cells[idx].classList.add('cell-occupied');
-    });
-  }
-
   function renderInventoryState() {
-    const char = getActiveChar();
-    inventoryText.value = char.inventory.text || '';
-
-    if (char.inventory.mode === 'list') {
-      invGridWrap.style.display = 'none';
-      invListContainer.style.display = 'flex';
-    } else {
-      invGridWrap.style.display = 'block';
-      invListContainer.style.display = 'none';
-      renderInventoryGrid(char);
-    }
-    updateSelectionUI();
+    inventoryText.value = getActiveChar().inventory.text || '';
   }
-
-  btnAssignInvLabel.addEventListener('click', () => {
-    if (selectedCells.size === 0) {
-      showToast('Сначала выделите ячейки на сетке (например 2×8)!', 'warning');
-      return;
-    }
-
-    let name = invItemLabelInput.value.trim();
-    if (!name) {
-      name = prompt('Введите название предмета (например: Лук, Доспех, Меч):');
-      if (!name) return;
-      invItemLabelInput.value = name;
-    }
-
-    const char = getActiveChar();
-    if (!char.inventory.items) char.inventory.items = [];
-
-    const cellArr = Array.from(selectedCells);
-
-    // Remove overlapping items
-    char.inventory.items = char.inventory.items.filter(it => !it.cells.some(c => cellArr.includes(c)));
-
-    char.inventory.items.push({
-      id: 'item_' + Date.now(),
-      name: name,
-      cells: cellArr
-    });
-
-    char.inventory.grid = Array.from(new Set([...(char.inventory.grid || []), ...cellArr]));
-
-    if (char.inventory.text && !char.inventory.text.includes(name)) {
-      char.inventory.text += `\n${name}`;
-    } else if (!char.inventory.text) {
-      char.inventory.text = name;
-    }
-
-    selectedCells.clear();
-    invItemLabelInput.value = '';
-    saveState();
-    renderInventoryState();
-    showToast(`Предмет «${name}» успешно размещен на сетке!`, 'success');
-  });
-
-  btnQuickAddItem.addEventListener('click', () => {
-    const name = prompt('Название предмета (например: Лук, Меч, Щит):', 'Лук');
-    if (!name) return;
-    const wStr = prompt('Ширина в ячейках (от 1 до 25):', '2');
-    if (!wStr) return;
-    const hStr = prompt('Высота в ячейках (от 1 до 10):', '8');
-    if (!hStr) return;
-
-    const w = parseInt(wStr) || 1;
-    const h = parseInt(hStr) || 1;
-
-    const char = getActiveChar();
-    if (!char.inventory.items) char.inventory.items = [];
-
-    const occupied = new Set();
-    char.inventory.items.forEach(it => it.cells.forEach(c => occupied.add(c)));
-
-    let foundAnchor = null;
-    outerLoop:
-    for (let r = 0; r <= 10 - h; r++) {
-      for (let c = 0; c <= 25 - w; c++) {
-        let fits = true;
-        for (let dr = 0; dr < h; dr++) {
-          for (let dc = 0; dc < w; dc++) {
-            if (occupied.has((r + dr) * 25 + (c + dc))) {
-              fits = false;
-              break;
-            }
-          }
-          if (!fits) break;
-        }
-        if (fits) {
-          foundAnchor = { r, c };
-          break outerLoop;
-        }
-      }
-    }
-
-    if (!foundAnchor) {
-      showToast(`Не найдено свободного места ${w}×${h} на сетке!`, 'danger');
-      return;
-    }
-
-    const itemCells = [];
-    for (let dr = 0; dr < h; dr++) {
-      for (let dc = 0; dc < w; dc++) {
-        itemCells.push((foundAnchor.r + dr) * 25 + (foundAnchor.c + dc));
-      }
-    }
-
-    char.inventory.items.push({
-      id: 'item_' + Date.now(),
-      name: name,
-      cells: itemCells
-    });
-
-    char.inventory.grid = Array.from(new Set([...(char.inventory.grid || []), ...itemCells]));
-
-    if (char.inventory.text && !char.inventory.text.includes(name)) {
-      char.inventory.text += `\n${name}`;
-    } else if (!char.inventory.text) {
-      char.inventory.text = name;
-    }
-
-    saveState();
-    renderInventoryState();
-    showToast(`Предмет «${name}» (${w}×${h}) размещен!`, 'success');
-  });
-
-  function deleteItemFromInventory(item) {
-    const char = getActiveChar();
-    if (!char.inventory.items) char.inventory.items = [];
-    char.inventory.items = char.inventory.items.filter(it => it.id !== item.id);
-    const itemCellSet = new Set(item.cells);
-    char.inventory.grid = (char.inventory.grid || []).filter(c => !itemCellSet.has(c));
-    selectedCells.clear();
-    invItemLabelInput.value = '';
-    saveState();
-    renderInventoryState();
-    showToast(`Предмет «${item.name}» удален с сетки`, 'info');
-  }
-
-  function deleteSelectedInventoryItems() {
-    if (selectedCells.size === 0) {
-      showToast('Сначала выделите предмет или ячейки на сетке!', 'warning');
-      return;
-    }
-    const char = getActiveChar();
-    if (!char.inventory.items) char.inventory.items = [];
-    const cellArr = Array.from(selectedCells);
-    const itemsToDelete = char.inventory.items.filter(it => it.cells.some(c => cellArr.includes(c)));
-
-    if (itemsToDelete.length > 0) {
-      const names = itemsToDelete.map(it => `«${it.name}»`).join(', ');
-      char.inventory.items = char.inventory.items.filter(it => !itemsToDelete.includes(it));
-      const deletedCellSet = new Set();
-      itemsToDelete.forEach(it => it.cells.forEach(c => deletedCellSet.add(c)));
-      cellArr.forEach(c => deletedCellSet.add(c));
-      char.inventory.grid = (char.inventory.grid || []).filter(c => !deletedCellSet.has(c));
-      selectedCells.clear();
-      invItemLabelInput.value = '';
-      saveState();
-      renderInventoryState();
-      showToast(`Предмет ${names} удален с сетки!`, 'info');
-    } else {
-      char.inventory.grid = (char.inventory.grid || []).filter(c => !cellArr.includes(c));
-      selectedCells.clear();
-      invItemLabelInput.value = '';
-      saveState();
-      renderInventoryState();
-      showToast('Выделенные ячейки освобождены', 'info');
-    }
-  }
-
-  if (btnDeleteInvItem) {
-    btnDeleteInvItem.addEventListener('click', deleteSelectedInventoryItems);
-  }
-
-  btnClearInvSelection.addEventListener('click', () => {
-    selectedCells.clear();
-    invItemLabelInput.value = '';
-    updateSelectionUI();
-  });
-
-  document.getElementById('btnToggleInvView').addEventListener('click', () => {
-    const char = getActiveChar();
-    char.inventory.mode = char.inventory.mode === 'grid' ? 'list' : 'grid';
-    saveState();
-    renderInventoryState();
-  });
-
-  document.getElementById('btnClearInvGrid').addEventListener('click', () => {
-    if (confirm('Очистить всю сетку инвентаря? Все размещенные предметы будут удалены.')) {
-      const char = getActiveChar();
-      char.inventory.grid = [];
-      char.inventory.items = [];
-      selectedCells.clear();
-      invItemLabelInput.value = '';
-      saveState();
-      renderInventoryState();
-      showToast('Сетка инвентаря очищена', 'info');
-    }
-  });
 
   inventoryText.addEventListener('input', (e) => {
     getActiveChar().inventory.text = e.target.value;
@@ -1345,9 +1463,14 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="comp-card-title">Градации сложности</div>
           <div class="shop-item-rules">d4 (очень легко), d6 (легко), d8 (средне), d10 (сложно), d12 (очень сложно), d20 (почти невозможно).</div>
         </div>
+        <div class="comp-card">
+          <div class="comp-card-title">Прочность и щит</div>
+          <div class="shop-item-rules">Начальные ОП равны максимуму кости урона или защиты. Когда ОП заканчиваются, кость прочности и урона/защиты уменьшается на одну градацию. Оружие теряет 1 ОП после битвы; щит — после каждого броска защиты; броня — после броска защиты без щита. С щитом бросаются кости брони и щита, используется максимум.</div>
+        </div>
       `;
     } 
     else if (tabName === 'tabRaces') {
+      container.innerHTML = '<div class="comp-card shop-item-rules">При создании персонажа выбирается ровно одна черта своей расы. Расовые навыки и перки дополняют два базовых навыка.</div>';
       GAME_DATA.races.forEach(r => {
         let traitsHtml = r.traits.map(t => `<div><strong>${t.name}:</strong> ${t.effect}</div>`).join('');
         container.innerHTML += `
@@ -1478,10 +1601,12 @@ document.addEventListener('DOMContentLoaded', () => {
             <div style="font-size:12px; color:var(--text-muted);">Базовая дистанция: ${d.baseRange}</div>
             <div style="font-size:12px; color:var(--text-muted);">Сила магии: ${d.power}</div>
             ${d.height ? `<div style="font-size:12px; color:var(--text-muted);">${d.height}</div>` : ''}
+            ${d.special ? `<div class="shop-item-rules">${d.special}</div>` : ''}
             ${tableHtml}
           </div>
         `;
       });
+      container.innerHTML += '<div class="comp-card"><div class="comp-card-title">Некромантия</div><div class="shop-item-rules">В 7-й редакции (стр. 24) указаны только заголовки «Старая некромантия» и «Светлая некромантия». Правила сотворения и таблицы эффектов ещё не описаны.</div></div>';
     }
   }
 
@@ -1771,7 +1896,16 @@ document.addEventListener('DOMContentLoaded', () => {
           <option value="3">Тяжелая (+3 ступени)</option>
         </select>
         
-        <label>Дальность/Высота (штраф):</label>
+        <div id="mcDisciplineHelp" class="shop-item-rules"></div>
+        <label>Дополнительные чувства иллюзии:</label>
+        <select id="mcSenses" class="die-select" style="width:100%;">
+          <option value="0">Одно чувство (+0)</option>
+          <option value="1">Два чувства (+1)</option>
+          <option value="2">Три чувства (+2)</option>
+          <option value="3">Четыре чувства (+3)</option>
+          <option value="4">Пять чувств (+4)</option>
+        </select>
+        <label>Увеличение дистанции (штраф):</label>
         <select id="mcRangePenalty" class="die-select" style="width:100%; color:var(--text-main); background:var(--bg-input);">
           <option value="0">В пределах базовой (без штрафа)</option>
           <option value="1">+1 ступень (далеко)</option>
@@ -1784,6 +1918,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="calc-result-pill" style="margin-top:10px;">
           Итоговая Сложность (СЛ): <span id="mcFinalSL">d4</span>
         </div>
+        <div class="shop-item-rules">Сила магии: <strong id="mcPower"></strong>. Броня, дистанция и аффект не повышают силу эффекта. Повышение высоты огня учитывайте в уровне эффекта.</div>
         
         <button id="mcRollBtn" class="btn btn-primary" style="margin-top:10px; font-size:16px; padding:10px;">🎲 Совершить бросок!</button>
       </div>
@@ -1794,6 +1929,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const mcArmorPenalty = document.getElementById('mcArmorPenalty');
     const mcRangePenalty = document.getElementById('mcRangePenalty');
     const mcFinalSL = document.getElementById('mcFinalSL');
+    const mcSenses = document.getElementById('mcSenses');
+
+    function selectedDiscipline() {
+      const [source, index] = mcDiscipline.value.split('_');
+      const choice = source === 'char' ? activeDiscs[Number(index)] : GAME_DATA.magic.disciplines[Number(index)];
+      const preset = GAME_DATA.magic.disciplines.find(d => d.name === choice.name);
+      return { ...choice, ...preset };
+    }
+
+    const attrKey = name => ({ 'Телосложение': 'constitution', 'Интеллект': 'intellect', 'Эмпатия': 'empathy', 'Дух': 'spirit' }[name] || 'spirit');
     
     const slLadder = [4, 6, 8, 10, 12, 20];
     let finalDie = 4;
@@ -1801,13 +1946,24 @@ document.addEventListener('DOMContentLoaded', () => {
     function recalcMagic() {
       let baseIdx = slLadder.indexOf(parseInt(mcBaseSL.value));
       if (baseIdx === -1) baseIdx = 0;
-      let totalSteps = baseIdx + parseInt(mcArmorPenalty.value) + parseInt(mcRangePenalty.value) + (char.magic.affect || 0);
+      const disc = selectedDiscipline();
+      mcSenses.disabled = disc.name !== 'Магия иллюзий';
+      const sensesSteps = mcSenses.disabled ? 0 : Number(mcSenses.value);
+      mcRangePenalty.disabled = disc.name === 'Телепатия';
+      const rangeSteps = mcRangePenalty.disabled ? 0 : Number(mcRangePenalty.value);
+      document.getElementById('mcDisciplineHelp').textContent = disc.baseRange
+        ? `Дистанция: ${disc.baseRange}. ${disc.special || disc.height || ''}`
+        : 'Параметры собственной дисциплины задайте по договорённости с ведущим.';
+      const effectDie = slLadder[Math.min(baseIdx + sensesSteps, slLadder.length - 1)];
+      const powerDie = dieValue(char.attributes[attrKey(disc.powerAttr || disc.attr)].die);
+      document.getElementById('mcPower').textContent = 'd' + Math.min(effectDie, powerDie);
+      let totalSteps = baseIdx + sensesSteps + Number(mcArmorPenalty.value) + rangeSteps + (char.magic.affect || 0);
       if (totalSteps >= slLadder.length) totalSteps = slLadder.length - 1; // max d20
       finalDie = slLadder[totalSteps];
       mcFinalSL.textContent = 'd' + finalDie;
     }
 
-    [mcDiscipline, mcBaseSL, mcArmorPenalty, mcRangePenalty].forEach(el => el.addEventListener('change', recalcMagic));
+    [mcDiscipline, mcBaseSL, mcArmorPenalty, mcRangePenalty, mcSenses].forEach(el => el.addEventListener('change', recalcMagic));
     recalcMagic();
 
     document.getElementById('mcRollBtn').addEventListener('click', () => {
@@ -1826,10 +1982,7 @@ document.addEventListener('DOMContentLoaded', () => {
         attrName = d.attr;
       }
 
-      let actualAttr = 'spirit';
-      if (attrName.includes('Телосложение')) actualAttr = 'constitution';
-      if (attrName.includes('Интеллект')) actualAttr = 'intellect';
-      if (attrName.includes('Эмпатия')) actualAttr = 'empathy';
+      const actualAttr = attrKey(selectedDiscipline().attr || attrName);
       
       const charDie = dieValue(char.attributes[actualAttr].die);
       
@@ -1849,10 +2002,12 @@ document.addEventListener('DOMContentLoaded', () => {
       rollDetails.textContent = success ? `УСПЕХ! Магия сотворена.` : `ПРОВАЛ. Магия не сработала.`;
       
       if (success) {
-        char.magic.affect = (char.magic.affect || 0) + 1;
+        const exemptions = { 'Отточенные основы': 4, 'Углубленные умения': 6, 'Огромный опыт': 8 };
+        const noAffect = char.perks.some(p => exemptions[p.name] === finalDie);
+        if (!noAffect) char.magic.affect = (char.magic.affect || 0) + 1;
         saveState();
         renderSheet();
-        showToast('Успех: Аффект увеличен на 1', 'warning');
+        showToast(noAffect ? 'Успех: перк предотвращает аффект' : 'Успех: Аффект увеличен на 1', noAffect ? 'success' : 'warning');
       }
 
       const histItem = document.createElement('div');
@@ -1874,7 +2029,7 @@ document.addEventListener('DOMContentLoaded', () => {
     name: 'Новый герой',
     race: 'Человек',
     selectedTrait: 'human_knowledge',
-    dwarfSpecial: 'Горное дело',
+    racialSkillChoice: 'Горное дело',
     elfDoubledSkill: '',
     concept: 'Искатель приключений',
     attrs: { constitution: 'd6', intellect: 'd8', empathy: 'd8', spirit: 'd10' },
@@ -1899,13 +2054,31 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/"/g, '&quot;');
   }
 
-  function getWizMaxSkills() {
-    if (wizData.race === 'Человек') {
-      return 3; // +1 дополнительный навык по черте «Много поверхностных знаний»
+  function getWizTrait() {
+    return GAME_DATA.races.find(r => r.name === wizData.race)?.traits.find(t => t.id === wizData.selectedTrait) || {};
+  }
+
+  function getWizRacialSkills() {
+    const trait = getWizTrait();
+    return [...(trait.fixedSkills || []), ...(trait.extraSkillOptions ? [wizData.racialSkillChoice] : [])].filter(Boolean);
+  }
+
+  function syncWizSkills() {
+    const trait = getWizTrait();
+    if (trait.extraSkillOptions && !trait.extraSkillOptions.includes(wizData.racialSkillChoice)) {
+      wizData.racialSkillChoice = trait.extraSkillOptions[0];
     }
-    // Для всех остальных рас базовое количество - 2
-    // (Для Дворфа с чертой «Дворфийские знания» 3-й навык выбирается отдельно через радио-кнопку: Горное дело или Пивоварение)
-    return 2;
+    const granted = getWizRacialSkills();
+    wizData.skills = wizData.skills.filter(sk => !granted.includes(sk)).slice(0, getWizMaxSkills());
+  }
+
+  function getWizMaxSkills() {
+    return GAME_DATA.system.startingSkillsCount + (getWizTrait().bonusSkills || 0);
+  }
+
+  function getWizFinalSkills() {
+    const skills = [...new Set([...wizData.skills, ...getWizRacialSkills()])];
+    return skills.map(sk => getWizTrait().doubleSkill && sk === wizData.elfDoubledSkill ? `${sk} (★ двойной)` : sk);
   }
 
   function startWizard() {
@@ -1914,7 +2087,7 @@ document.addEventListener('DOMContentLoaded', () => {
       name: 'Новый герой',
       race: 'Человек',
       selectedTrait: 'human_knowledge',
-      dwarfSpecial: 'Горное дело',
+      racialSkillChoice: 'Горное дело',
       elfDoubledSkill: '',
       concept: 'Искатель приключений',
       attrs: { constitution: 'd6', intellect: 'd8', empathy: 'd8', spirit: 'd10' },
@@ -2039,22 +2212,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const isComplete = (selectedCount === maxSkills);
       const isLimitReached = (selectedCount >= maxSkills);
 
-      let ruleNote = '';
-      if (wizData.race === 'Человек') {
-        ruleNote = 'Раса <strong>«Человек»</strong> (черта «Много поверхностных знаний»): 2 базовых + 1 бонусный навык. Всего доступно: <strong>3</strong> навыка.';
-      } else if (wizData.race === 'Дворф' && wizData.selectedTrait === 'dwarf_knowledge') {
-        ruleNote = 'Раса <strong>«Дворф»</strong> (черта «Дворфийские знания»): <strong>2</strong> базовых навыка из списка + 1 специальный навык дворфа ниже.';
-      } else if (wizData.race === 'Дворф') {
-        ruleNote = 'Раса <strong>«Дворф»</strong> (черта «Выносливые горцы»): доступно <strong>2</strong> базовых навыка (бонус Телосложения против ядов).';
-      } else if (wizData.race === 'Эльф' && wizData.selectedTrait === 'elf_skills_km') {
-        ruleNote = 'Раса <strong>«Эльф»</strong> (черта «Специфические умения»): доступно <strong>2</strong> навыка (+2 КМ начислено на старте).';
-      } else if (wizData.race === 'Эльф' && wizData.selectedTrait === 'elf_honed_skill') {
-        ruleNote = 'Раса <strong>«Эльф»</strong> (черта «Отточенные навыки»): доступно <strong>2</strong> навыка (один выбранный навык получит удвоение бонуса).';
-      } else if (wizData.race === 'Орк') {
-        ruleNote = 'Раса <strong>«Орк»</strong>: доступно <strong>2</strong> базовых навыка.';
-      } else {
-        ruleNote = 'Доступно стартовых навыков: <strong>2</strong>.';
-      }
+      const trait = getWizTrait();
+      const racialSkills = getWizRacialSkills();
+      const ruleNote = `Выберите ${maxSkills} базовых навыка. Расовая черта «${trait.name}»: ${trait.effect}`;
 
       contentHtml = `
         <div class="wizard-skills-header">
@@ -2067,24 +2227,17 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       `;
 
-      if (wizData.race === 'Дворф' && wizData.selectedTrait === 'dwarf_knowledge') {
+      if (trait.extraSkillOptions) {
         contentHtml += `
           <div class="wizard-dwarf-box">
-            <div style="font-weight:700; font-size:12.5px; color:var(--accent-gold); margin-bottom:6px;">
-              ⛏️ Дополнительный 3-й навык дворфа (по черте «Дворфийские знания»):
-            </div>
-            <div style="display:flex; gap:20px; flex-wrap:wrap;">
-              <label class="custom-checkbox-label" style="cursor:pointer;">
-                <input type="radio" name="wzDwarfSpecial" value="Горное дело" ${wizData.dwarfSpecial==='Горное дело'?'checked':''}>
-                <span><strong>Горное дело</strong> (Интеллект / Телосложение)</span>
-              </label>
-              <label class="custom-checkbox-label" style="cursor:pointer;">
-                <input type="radio" name="wzDwarfSpecial" value="Пивоварение" ${wizData.dwarfSpecial==='Пивоварение'?'checked':''}>
-                <span><strong>Пивоварение</strong> (Интеллект / Ремесла)</span>
-              </label>
-            </div>
-          </div>
-        `;
+            <label for="wzRacialSkill" style="font-weight:700;">Дополнительный расовый навык:</label>
+            <select id="wzRacialSkill" class="btn" style="min-width:0; max-width:100%;">
+              ${trait.extraSkillOptions.map(sk => `<option value="${sk}" ${wizData.racialSkillChoice === sk ? 'selected' : ''}>${sk}</option>`).join('')}
+            </select>
+          </div>`;
+      }
+      if (racialSkills.length || trait.bonusPerks?.length) {
+        contentHtml += `<div class="comp-card shop-item-rules">Бесплатно от расы: ${[...racialSkills, ...(trait.bonusPerks || []).map(p => `перк «${p}»`)].join(', ')}. Эти навыки не занимают базовые слоты.</div>`;
       }
 
       if (wizData.race === 'Эльф' && wizData.selectedTrait === 'elf_honed_skill' && wizData.skills.length > 0) {
@@ -2106,8 +2259,9 @@ document.addEventListener('DOMContentLoaded', () => {
       contentHtml += `
         <div class="wizard-skills-grid">
           ${GAME_DATA.skills.map(s => {
-            const isChecked = wizData.skills.includes(s.name);
-            const isDisabled = (!isChecked && isLimitReached);
+            const isGranted = racialSkills.includes(s.name);
+            const isChecked = wizData.skills.includes(s.name) || isGranted;
+            const isDisabled = isGranted || (!isChecked && isLimitReached);
             return `
               <label class="skill-select-card wizard-skill-card ${isChecked ? 'is-checked' : ''} ${isDisabled ? 'is-disabled' : ''}">
                 <input type="checkbox" class="wz-skill-cb" value="${s.name}" ${isChecked ? 'checked' : ''} ${isDisabled ? 'disabled' : ''}>
@@ -2140,17 +2294,9 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
     }
     else if (wizStep === 4) {
-      let kmBonus = 0;
-      if (wizData.race === 'Человек') kmBonus = 1;
-      else if (wizData.race === 'Эльф' && wizData.selectedTrait === 'elf_skills_km') kmBonus = 2;
+      const kmBonus = getWizTrait().bonusKM || 0;
 
-      let allSkills = [...wizData.skills];
-      if (wizData.race === 'Дворф' && wizData.selectedTrait === 'dwarf_knowledge' && wizData.dwarfSpecial) {
-        allSkills.push(`${wizData.dwarfSpecial} (расовый)`);
-      }
-      if (wizData.race === 'Эльф' && wizData.selectedTrait === 'elf_honed_skill' && wizData.elfDoubledSkill) {
-        allSkills = allSkills.map(sk => sk === wizData.elfDoubledSkill ? `${sk} (★ двойной)` : sk);
-      }
+      const allSkills = getWizFinalSkills();
 
       const activeTraitObj = (GAME_DATA.races.find(r => r.name === wizData.race)?.traits || []).find(t => t.id === wizData.selectedTrait);
       const traitName = activeTraitObj ? activeTraitObj.name : '—';
@@ -2169,6 +2315,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <p style="font-size:11.5px; color:var(--text-muted); margin-bottom:8px; line-height:1.35;">${traitEffect}</p>
               <p style="margin-bottom:6px;"><strong>Концепция:</strong> ${escapeHtml(wizData.concept)}</p>
               <p style="margin-bottom:6px;"><strong>Стартовые КМ:</strong> <strong>${kmBonus} / ${kmBonus}</strong></p>
+              <p><strong>Расовые перки (бесплатно):</strong> ${(getWizTrait().bonusPerks || []).join(', ') || '—'}</p>
               <p><strong>Динары:</strong> 100 ⌘</p>
             </div>
             <div>
@@ -2210,6 +2357,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('input[name="wzSelectedTrait"]').forEach(r => {
         r.addEventListener('change', e => {
           wizData.selectedTrait = e.target.value;
+          syncWizSkills();
           renderWizardStep();
         });
       });
@@ -2247,10 +2395,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       });
 
-      document.querySelectorAll('input[name="wzDwarfSpecial"]').forEach(r => {
-        r.addEventListener('change', e => {
-          wizData.dwarfSpecial = e.target.value;
-        });
+      const racialSkillSelect = document.getElementById('wzRacialSkill');
+      if (racialSkillSelect) racialSkillSelect.addEventListener('change', e => {
+        wizData.racialSkillChoice = e.target.value;
+        syncWizSkills();
+        renderWizardStep();
       });
 
       const elfSel = document.getElementById('wzElfDoubled');
@@ -2282,10 +2431,7 @@ document.addEventListener('DOMContentLoaded', () => {
         wizData.selectedTrait = race.traits[0].id;
       }
     }
-    const maxSkills = getWizMaxSkills();
-    if (wizData.skills.length > maxSkills) {
-      wizData.skills = wizData.skills.slice(0, maxSkills);
-    }
+    syncWizSkills();
     renderWizardStep();
   };
 
@@ -2301,26 +2447,26 @@ document.addEventListener('DOMContentLoaded', () => {
       const char = getActiveChar();
       char.name = wizData.name;
       char.race = wizData.race;
+      char.raceTrait = wizData.selectedTrait;
+      char.rulesVersion = GAME_DATA.system.version;
       char.concept = wizData.concept;
       char.attributes.constitution.die = wizData.attrs.constitution;
       char.attributes.intellect.die = wizData.attrs.intellect;
       char.attributes.empathy.die = wizData.attrs.empathy;
       char.attributes.spirit.die = wizData.attrs.spirit;
       
-      let finalSkills = [...wizData.skills];
-      if (wizData.race === 'Дворф' && wizData.selectedTrait === 'dwarf_knowledge' && wizData.dwarfSpecial) {
-        finalSkills.push(wizData.dwarfSpecial);
-      }
-      if (wizData.race === 'Эльф' && wizData.selectedTrait === 'elf_honed_skill' && wizData.elfDoubledSkill) {
-        finalSkills = finalSkills.map(sk => sk === wizData.elfDoubledSkill ? `${sk} (★ двойной)` : sk);
-      }
-      char.skills = finalSkills.join('\n');
+      char.skills = getWizFinalSkills().join('\n');
+      // Re-running the wizard replaces previous racial gifts only, keeping purchased perks.
+      char.perks = char.perks.filter(p => !p.racialGrant);
+      (getWizTrait().bonusPerks || []).forEach(name => {
+        if (!char.perks.some(p => p.name === name)) {
+          char.perks.push({ name, cost: 0, racialGrant: wizData.selectedTrait });
+        }
+      });
       char.inventory.text = wizData.inventory || '';
       
       // Calculate KM based on race and chosen trait
-      let addedKm = 0;
-      if (wizData.race === 'Человек') addedKm = 1;
-      else if (wizData.race === 'Эльф' && wizData.selectedTrait === 'elf_skills_km') addedKm = 2;
+      const addedKm = getWizTrait().bonusKM || 0;
       char.km = { current: addedKm, max: addedKm };
       char.dinars = 100;
 
@@ -2344,6 +2490,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ИНИЦИАЛИЗАЦИЯ ПРИЛОЖЕНИЯ
   // ==========================================
   loadState();
-  initGrid();
+  // initGrid(); // Cell inventory is archived until it is needed again.
   renderAll();
+  saveState();
 });

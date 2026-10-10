@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Темная Башня — Интерактивный бланк персонажа</title>
+  <title>Темная Башня — 7-я редакция — Бланк персонажа</title>
   <!-- Google Fonts: Cinzel, MedievalSharp, Lora -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,7 +23,7 @@
         <svg class="brand-icon" viewBox="0 0 24 24">
           <path d="M12 2L4 7v13h16V7l-8-5zm6 16H6V8.2l6-3.8 6 3.8V18zM9 10h6v2H9v-2zm0 4h6v2H9v-2z"/>
         </svg>
-        <span>ТЕМНАЯ БАШНЯ</span>
+        <span>ТЕМНАЯ БАШНЯ · 7</span>
       </div>
 
       <div class="character-select-wrap">
@@ -96,7 +96,12 @@
             </div>
             <div class="info-field-row">
               <label class="info-label" for="charRace">Раса</label>
-              <input type="text" id="charRace" class="input-underline" placeholder="Человек, Эльф, Дворф, Орк...">
+              <input type="text" id="charRace" class="input-underline" list="raceOptions" placeholder="Раса персонажа">
+              <datalist id="raceOptions"></datalist>
+            </div>
+            <div class="info-field-row no-print">
+              <label class="info-label" for="charRaceTrait">Черта</label>
+              <select id="charRaceTrait" class="input-underline" style="min-width:0; flex:1; width:100%;" title="Активная расовая черта; навыки и перки выдаются в мастере создания"></select>
             </div>
             <div class="info-field-row">
               <label class="info-label" for="charConcept">Концепция</label>
@@ -322,12 +327,13 @@
           </div>
         </div>
 
-        <!-- Снаряжение (Интерактивная сетка инвентаря + режим списка) -->
+        <!-- Снаряжение (список) -->
         <div class="sheet-box">
           <div class="sheet-box-header">
             <span>Снаряжение</span>
           </div>
           <div class="inventory-container">
+            <!-- Сетка инвентаря временно отключена; сохранена для будущего.
             <div class="inventory-toolbar no-print" style="display:flex; flex-direction:column; gap:6px;">
               <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
                 <input type="text" id="invItemLabelInput" class="input-underline" placeholder="Название (напр.: Лук)" style="width:140px; font-size:11px; padding:2px 6px; background:var(--bg-input);">
@@ -344,15 +350,17 @@
               </div>
             </div>
 
-            <!-- Клетчатая сетка как на бланке -->
+            Клетчатая сетка как на бланке
             <div class="inventory-grid-wrap" id="invGridContainer">
               <div class="sheet-grid" id="inventoryGrid">
-                <!-- 250 ячеек (25 колонок на 10 рядов) генерируются через JS -->
+                250 ячеек (25 колонок на 10 рядов) генерируются через JS
               </div>
             </div>
 
-            <!-- Альтернативный текстовый список снаряжения -->
-            <div class="inventory-list-view" id="invListContainer" style="display:none;">
+            -->
+
+            <!-- Основной текстовый список снаряжения -->
+            <div class="inventory-list-view" id="invListContainer">
               <textarea id="inventoryText" class="textarea-clean" style="min-height:160px;" placeholder="Перечислите снаряжение, припасы, факелы, зелья, трофеи..."></textarea>
             </div>
           </div>
@@ -484,7 +492,7 @@
 
             <div class="shield-rules-text">
               <p><strong>1.</strong> При броске защиты бросаются кости, но берется лучший результат.</p>
-              <p><strong>2.</strong> Броня и щит теряют 1 ОП при каждом броске защиты.</p>
+              <p><strong>2.</strong> Щит теряет 1 ОП за бросок защиты. Броня теряет 1 ОП только без щита.</p>
             </div>
           </div>
         </div>
@@ -526,13 +534,14 @@
               <!-- Динамические строки дисциплин -->
             </tbody>
           </table>
+          <datalist id="magicDisciplineOptions"></datalist>
 
           <!-- Трекер Аффекта и Концентрации -->
           <div class="magic-affect-tracker">
             <div class="magic-affect-row">
               <span class="info-label" style="min-width:auto; font-size:11px;">Аффект:</span>
               <div style="display:flex; align-items:center; gap:4px;">
-                <input type="number" id="magicAffectCount" class="hp-num-input" value="0" min="0" max="10" style="width:34px; padding:2px;">
+                <input type="number" id="magicAffectCount" class="hp-num-input" value="0" min="0" style="width:34px; padding:2px;">
                 <button id="btnResetAffectKm" class="btn no-print" style="font-size:10px; padding:2px 5px; white-space:nowrap;" title="Потратить 1 КМ и снять 1 пункт аффекта">-1 (1 КМ)</button>
               </div>
             </div>
@@ -613,7 +622,7 @@
   <div class="modal-backdrop" id="compendiumModal">
     <div class="modal-window" style="max-width:850px;">
       <div class="modal-header">
-        <h3 class="modal-title">📖 Книга правил «Темная Башня»</h3>
+        <h3 class="modal-title">📖 «Темная Башня» — 7-я редакция</h3>
         <button class="modal-close-btn" data-close-modal="compendiumModal">✕</button>
       </div>
       <div class="modal-body">
@@ -688,7 +697,7 @@
       </div>
       <div class="modal-body">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
-          <span style="font-size:12px; color:var(--text-muted);">По правилам персонаж начинает с 2 навыками (люди: +1, дворфы: выбор из 2).</span>
+          <span style="font-size:12px; color:var(--text-muted);">Старт: 2 навыка и бонусы одной выбранной расовой черты. Мастер создания учитывает их автоматически.</span>
           <button id="btnRoll2d20Skills" class="btn btn-primary" style="font-size:12px; padding:4px 10px;">🎲 Бросить 2d20 по правилам</button>
         </div>
         <div id="skillsCheckboxList" class="skills-checkbox-grid">
@@ -728,6 +737,17 @@
       <div class="modal-body" id="magicCastingBody">
         <!-- Калькулятор сотворения магии рендерится через JS -->
       </div>
+    </div>
+  </div>
+
+  <!-- Описание перка персонажа -->
+  <div class="modal-backdrop" id="perkDescriptionModal">
+    <div class="modal-window" style="max-width:550px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="perkDescriptionTitle">Описание перка</h3>
+        <button class="modal-close-btn" data-close-modal="perkDescriptionModal" aria-label="Закрыть описание перка">✕</button>
+      </div>
+      <div class="modal-body" id="perkDescriptionBody" style="display:flex; flex-direction:column; gap:12px;"></div>
     </div>
   </div>
 

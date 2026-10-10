@@ -962,6 +962,37 @@ body {
   color: #000;
 }
 
+.perk-name-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.perk-name-row .perk-name-input {
+  flex: 1;
+  min-width: 0;
+  width: 0;
+}
+
+.perk-info-btn {
+  flex-shrink: 0;
+  padding: 2px 5px;
+  font-size: 14px;
+}
+
+.perk-description-editor {
+  width: 100%;
+  min-width: 0;
+  min-height: 180px;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  background: var(--bg-input);
+  color: var(--text-main);
+  box-sizing: border-box;
+  resize: vertical;
+}
+
 .perks-footer-tools {
   padding: 6px;
   display: flex;
@@ -2179,6 +2210,7 @@ body[data-theme="paper"] .skill-card-title {
   .sheet-container {
     max-width: 100% !important;
     width: 100% !important;
+    zoom: 0.85;
     box-shadow: none !important;
     border: 2px solid #000 !important;
     padding: 8px !important;
@@ -2280,22 +2312,22 @@ body[data-theme="paper"] .skill-card-title {
   }
 
   .row-header {
-    grid-template-columns: 160px 1fr 280px !important;
+    grid-template-columns: 120px minmax(0, 1.5fr) minmax(0, 1fr) !important;
     gap: 8px !important;
   }
 
   .row-stats {
-    grid-template-columns: 360px 1fr 1fr !important;
+    grid-template-columns: 360px minmax(0, 1fr) minmax(0, 1fr) !important;
     gap: 8px !important;
   }
 
   .row-middle {
-    grid-template-columns: 260px 1fr !important;
+    grid-template-columns: 220px minmax(0, 1fr) !important;
     gap: 8px !important;
   }
 
   .row-combat {
-    grid-template-columns: 260px 1fr 230px !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.18fr) minmax(0, 1fr) !important;
     gap: 8px !important;
   }
 
@@ -2332,4 +2364,25 @@ body[data-theme="paper"] .skill-card-title {
     font-weight: bold !important;
     text-shadow: none !important;
   }
+
+  /* Keep the sheet within the existing A4 page area, including offline fonts. */
+  .box-info { padding: 6px !important; gap: 6px !important; grid-template-columns: minmax(0, 1fr) auto !important; }
+  .info-fields { gap: 6px !important; }
+  .info-field-row { gap: 4px !important; }
+  .box-info .info-label { min-width: 62px !important; font-size: 11px !important; }
+  .input-underline { font-size: 11px !important; }
+  .input-underline::placeholder { font-size: 10px !important; }
+  .km-badge-block { min-width: 96px !important; }
+  .badge-block { padding: 4px !important; }
+  .km-input { width: 30px !important; }
+  .logo-text-top, .logo-text-bottom { font-size: 24px !important; }
+  .defense-card { padding: 4px 6px !important; gap: 3px !important; }
+  .defense-types-row { gap: 3px !important; font-size: 9px !important; }
+  .defense-types-row label { font-size: 9px !important; }
+  .shield-block { padding: 4px !important; gap: 4px !important; }
+  .shield-rules-text { font-size: 9px !important; }
+  .weapon-rules { height: 48px !important; min-height: 48px !important; max-height: 48px !important; background: #fff !important; }
+  .notes-textarea { min-height: 60px !important; font-size: 11px !important; }
+  .inventory-grid { min-height: 140px !important; }
+  .grid-cell { min-height: 12px !important; }
 }
